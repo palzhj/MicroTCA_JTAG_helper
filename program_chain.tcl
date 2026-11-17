@@ -96,6 +96,7 @@ set jtag_freq   [lindex $argv 2]
 set hw_url      [lindex $argv 3]
 set rtm_dev_req [lindex $argv 4]
 set amc_dev_req [lindex $argv 5]
+set prev_sig    [lindex $argv 6]
 
 if {$jtag_freq eq ""} { set jtag_freq 10000000 }
 if {$hw_url eq ""}    { set hw_url "localhost:3121" }
@@ -217,6 +218,17 @@ if {$rtm_dev eq ""} { set rtm_dev [pick_part $devs "xc7*"] }
 
 if {$rtm_dev_req ne ""} { set rtm_dev $rtm_dev_req }
 if {$amc_dev_req ne ""} { set amc_dev $amc_dev_req }
+
+# A JTAG switch that is not routing leaves every slot looking identical. That
+# would program the same FPGA over and over while reporting success, so stop
+# before touching it.
+set sig ""
+foreach d $devs { append sig "[get_property PART $d];" }
+if {$prev_sig ne "" && $sig eq $prev_sig} {
+  puts "CHAIN_UNCHANGED: $sig"
+  die "chain is identical to the previous slot ($sig) - the JTAG switch does not appear to be routing; refusing to program the same device twice"
+}
+puts "CHAIN_SIG: $sig"
 
 # --- program: RTM first, then AMC -------------------------------------------
 if {$rtm_bit ne "none" && $rtm_bit ne ""} {

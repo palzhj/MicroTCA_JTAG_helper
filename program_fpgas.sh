@@ -29,6 +29,7 @@
 #   --hw-server URL   hw_server URL (default: localhost:3121)
 #   --rtm-dev NAME    force the RTM hw_device name (default: auto by part)
 #   --amc-dev NAME    force the AMC hw_device name (default: auto by part)
+#   --allow-same-chain    allow two slots to report an identical chain (default: refuse)
 #   --vivado PATH     Vivado executable (default: $VIVADO, VIVADO= in the env file, PATH, newest install)
 #   -h, --help        show this help
 #
@@ -64,6 +65,8 @@ jtag_freq=$jsm_max_jtag_hz
 hw_server="localhost:3121"
 rtm_dev=""
 amc_dev=""
+allow_same_chain=0
+prev_chain_sig=""
 vivado_opt=""
 vivado=""           # resolved after parsing: --vivado, $VIVADO, PATH, newest install
 
@@ -95,6 +98,7 @@ while (($#)); do
     --hw-server)   hw_server="$2"; shift 2 ;;
     --rtm-dev)     rtm_dev="$2"; shift 2 ;;
     --amc-dev)     amc_dev="$2"; shift 2 ;;
+    --allow-same-chain) allow_same_chain=1; shift ;;
     --vivado)      vivado_opt="$2"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     *)             printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
@@ -305,6 +309,7 @@ evaluate_slot() {
   local line cur="" fatal="" chain_count="" role
   local -A begun=() fail=() startup=() prog=() took=() done=() eos=() crc=()
   local -a chain=()
+  chain_sig=""
   local -a missing=()
   for role in "${roles[@]}"; do
     begun[$role]=0; fail[$role]=""; startup[$role]=""; prog[$role]=""; took[$role]=""
@@ -319,6 +324,7 @@ evaluate_slot() {
       fatal+="${BASH_REMATCH[2]}"$'\n'
     fi
     [[ $line =~ ^CHAIN_COUNT:\ ([0-9]+) ]] && chain_count="${BASH_REMATCH[1]}"
+    [[ $line =~ ^CHAIN_SIG:\ (.*) ]] && chain_sig="${BASH_REMATCH[1]}"
     [[ $line =~ ^CHAIN\ dev=([^[:space:]]+)\ part=([^[:space:]]+) ]] && chain+=("${BASH_REMATCH[1]} (${BASH_REMATCH[2]})")
     [[ $line =~ ^MISSING\ role=([A-Za-z]+) ]] && missing+=("${BASH_REMATCH[1]}")
     if [[ $line =~ ^PROGRAM_BEGIN\ role=([A-Za-z]+) ]]; then
@@ -392,6 +398,8 @@ evaluate_slot() {
     warn "slot $slot $role: programmed but DONE could not be confirmed (no register read, no startup status)"
   done
 
+  prev_chain_sig="$chain_sig"
+
   local m
   if (( ${#missing[@]} )); then
     for m in "${missing[@]}"; do
@@ -424,6 +432,7 @@ for slot in "${plan_slots[@]}"; do
   timeout "$vivado_timeout" "$vivado" -mode batch -nojournal -nolog -notrace \
       -source "$tcl_file" \
       -tclargs "$rtm_bit" "$amc_bit" "$jtag_freq" "$hw_server" "$rtm_dev" "$amc_dev" \
+               "$( (( allow_same_chain )) && echo '' || echo "$prev_chain_sig")" \
       > "$out_file" 2>&1
   rc=$?
 

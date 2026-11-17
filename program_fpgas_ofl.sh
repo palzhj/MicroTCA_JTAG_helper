@@ -41,6 +41,7 @@
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
 #   --no-invert-read-edge disable the above
 #   --cable NAME      JTAG cable (default: digilent_hs3)
+#   --allow-same-chain    allow two slots to report an identical chain (default: refuse)
 #   --vid ID          cable USB vendor id (default: 0x0403)
 #   --pid ID          cable USB product id (default: 0x6010)
 #   --ofl PATH        openFPGALoader binary (default: $OPENFPGALOADER or PATH)
@@ -70,6 +71,7 @@ channel_wait=20
 settle=0.5
 ofl_timeout=600
 jtag_freq=$jsm_max_jtag_hz
+allow_same_chain=0
 cable="digilent_hs3"
 vid="0x0403"
 invert_read_edge=1
@@ -106,6 +108,7 @@ while (($#)); do
     --timeout)      ofl_timeout="$2"; shift 2 ;;
     --freq)         jtag_freq="$2"; shift 2 ;;
     --cable)        cable="$2"; shift 2 ;;
+    --allow-same-chain) allow_same_chain=1; shift ;;
     --vid)          vid="$2"; shift 2 ;;
     --invert-read-edge)    invert_read_edge=1; shift ;;
     --no-invert-read-edge) invert_read_edge=0; shift ;;
@@ -297,14 +300,14 @@ select_channel() {
 }
 
 # --- chain detection ----------------------------------------------------------
-declare -A dev_family=() dev_model=()
+declare -A dev_family=() dev_model=() dev_idcode=()
 detect_chain() {
   # The first scan straight after an MCH channel switch can come back empty even
   # though the chain is healthy (same stale-scan effect seen with Vivado), so
   # retry a few times before declaring the channel dead.
   local attempt out rc cur="" i
   for attempt in 1 2 3 4; do
-    dev_family=(); dev_model=()
+    dev_family=(); dev_model=(); dev_idcode=()
     timeout "$ofl_timeout" "$ofl" "${ofl_common[@]}" --detect > "$out_file" 2>&1
     rc=$?
     out=$(tr -d '\000' < "$out_file")
@@ -339,6 +342,8 @@ detect_chain() {
         dev_family[$cur]="${BASH_REMATCH[1]}"
       elif [[ -n $cur && $line =~ ^[[:space:]]+model[[:space:]]+(.+)$ ]]; then
         dev_model[$cur]="${BASH_REMATCH[1]}"
+      elif [[ -n $cur && $line =~ ^[[:space:]]+idcode[[:space:]]+(0x[0-9a-fA-F]+) ]]; then
+        dev_idcode[$cur]="${BASH_REMATCH[1]}"
       fi
     done <<< "$out"
 
@@ -346,6 +351,11 @@ detect_chain() {
       (( attempt > 1 )) && info "chain detected on attempt $attempt"
       for i in "${!dev_model[@]}"; do
         info "chain device $i: ${dev_model[$i]} (${dev_family[$i]:-?})"
+      done
+      # identity of what this channel actually exposes, for cross-slot comparison
+      chain_sig=""
+      for i in $(printf '%s\n' "${!dev_model[@]}" | sort -n); do
+        chain_sig+="${dev_model[$i]}/${dev_idcode[$i]:-?};"
       done
       return 0
     fi
@@ -419,6 +429,20 @@ for slot in "${plan_slots[@]}"; do
   fi
 
   detect_chain || continue
+
+  # A JTAG switch that is not routing leaves every slot looking identical. That
+  # would program the same FPGA over and over while reporting success, so stop.
+  if [[ -n ${prev_chain_sig:-} && $chain_sig == "$prev_chain_sig" && $slot != "${prev_chain_slot:-}" ]]; then
+    if (( allow_same_chain )); then
+      warn "slot $slot: chain is identical to slot ${prev_chain_slot} ($chain_sig) - continuing because --allow-same-chain"
+    else
+      err "slot $slot: chain is identical to slot ${prev_chain_slot} ($chain_sig)"
+      printf '         the JTAG switch does not appear to be routing this slot; refusing to program\n'
+      printf '         the same device again (override with --allow-same-chain)\n'
+      continue
+    fi
+  fi
+  prev_chain_sig="$chain_sig"; prev_chain_slot="$slot"
 
   for role in RTM AMC; do
     bit="${role_path["$slot:$role"]:-}"
