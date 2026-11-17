@@ -32,12 +32,14 @@ export LD_LIBRARY_PATH="$HOME/.local/opt/ofl/lib/usr/lib/x86_64-linux-gnu"
 ~/.local/opt/ofl/usr/local/bin/openFPGALoader --Version
 ```
 
-Then point the script at it:
+Then point the script at it. The map file decides what gets programmed, so use a map that matches the
+job - check with `--dry-run` first, since a map that lists every slot will try every slot:
 
 ```bash
-LD_LIBRARY_PATH="$HOME/.local/opt/ofl/lib/usr/lib/x86_64-linux-gnu" \
-  ./program_fpgas_ofl.sh --map slot_map_ddr4.md --slot 1 \
-     --ofl "$HOME/.local/opt/ofl/usr/local/bin/openFPGALoader"
+export LD_LIBRARY_PATH="$HOME/.local/opt/ofl/lib/usr/lib/x86_64-linux-gnu"
+./program_fpgas_ofl.sh --map slot_map_ddr4.md --dry-run          # see the plan
+./program_fpgas_ofl.sh --map slot_map_ddr4.md \
+   --ofl "$HOME/.local/opt/ofl/usr/local/bin/openFPGALoader"
 ```
 
 To avoid repeating `LD_LIBRARY_PATH`, add a wrapper (step 5).

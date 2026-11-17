@@ -17,7 +17,6 @@
 # Options:
 #   --map FILE        slot map to use (default: the only slot_map*.md beside this script)
 #   --env FILE        bitstream path table (default: bit_files.env beside this script)
-#   --slot N          only handle slot N (repeatable)
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
 #   --mch ADDR        MCH address (default: 10.19.198.31)
@@ -35,7 +34,6 @@
 # Examples:
 #   ./program_fpgas.sh --dry-run          # show what would be programmed
 #   ./program_fpgas.sh                    # program every loaded slot
-#   ./program_fpgas.sh --slot 1           # just slot 1
 #   ./program_fpgas.sh --no-mch           # channel already selected by hand
 #   ./program_fpgas.sh --jtag-freq 5000000 --hw-server 192.168.10.50:3121
 #   ./program_fpgas.sh --map slot_map_waveform.md   # choose the slot map
@@ -52,7 +50,6 @@ tcl_file="$here/program_chain.tcl"
 jsm_max_jtag_hz=10000000
 
 # --- defaults -----------------------------------------------------------------
-slot_filter=()
 dry_run=0
 no_mch=0
 mch="10.19.198.31"
@@ -83,7 +80,6 @@ while (($#)); do
   case "$1" in
     --map)         slot_map="$2"; shift 2 ;;
     --env)         env_file="$2"; shift 2 ;;
-    --slot)        slot_filter+=("$2"); shift 2 ;;
     --dry-run)     dry_run=1; shift ;;
     --no-mch)      no_mch=1; shift ;;
     --mch)         mch="$2"; shift 2 ;;
@@ -167,11 +163,6 @@ plan_slots=()
 declare -A role_path=()
 declare -A role_sym=()
 for slot in $(seq 1 12); do
-  if (( ${#slot_filter[@]} )); then
-    keep=0
-    for want in "${slot_filter[@]}"; do (( want == slot )) && keep=1; done
-    (( keep )) || continue
-  fi
   entries=0
   for role in RTM AMC; do
     sym="${sym_of["$slot:$role"]:-}"

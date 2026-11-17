@@ -41,17 +41,20 @@ pod.
 # see what would be programmed, touching nothing
 ./program_fpgas.sh --map slot_map_ddr4.md --dry-run
 
-# program one slot with Vivado
-./program_fpgas.sh --map slot_map_ddr4.md --slot 1
+# program everything the map lists, with Vivado
+./program_fpgas.sh --map slot_map_ddr4.md
 
 # same, with openFPGALoader
-./program_fpgas_ofl.sh --map slot_map_ddr4.md --slot 1
+./program_fpgas_ofl.sh --map slot_map_ddr4.md
 ```
+
+The **map file is the whole job description**: it lists a bitstream per slot and the scripts program
+exactly that set. To program a subset, give a map that lists only those slots (`-` means no load).
 
 With no `--map`, the script uses the only `slot_map*.md` beside it, and **refuses to guess** when several
 are present.
 
-Common options: `--slot N`, `--dry-run`, `--no-mch` (channel already set by hand), `--mch ADDR`,
+Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by hand), `--mch ADDR`,
 `--jtag-freq HZ`, `--hw-server URL` (Vivado) or `--ofl PATH` (openFPGALoader). Both scripts accept
 `--help`.
 
