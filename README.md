@@ -80,6 +80,16 @@ A=./firmwares/ddr4_selftest/top.bit
 B=./firmwares/WR/top.bit
 ```
 
+Because relative paths resolve against this file's own directory, keep it next to `firmwares/` (or use
+absolute paths) - a copy placed elsewhere will look for bitstreams relative to the copy.
+
+The same file can carry two optional settings:
+
+| Key | Effect | Precedence |
+|---|---|---|
+| `MCH=` | MCH address used for channel selection | `--mch` > this entry > `192.168.1.41` |
+| `VIVADO=` | Vivado binary for `program_fpgas.sh` | `--vivado` > `$VIVADO` > this entry > `PATH` > newest install |
+
 ## How it works
 
 1. Select the slot's channel on the MCH (`FrontActiveDev` override over HTTP).

@@ -19,7 +19,7 @@
 #   --env FILE        bitstream path table (default: bit_files.env beside this script)
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
-#   --mch ADDR        MCH address (default: 192.168.1.41)
+#   --mch ADDR        MCH address (default: MCH= in the env file, else 192.168.1.41)
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
@@ -53,7 +53,8 @@ jsm_max_jtag_hz=10000000
 # --- defaults -----------------------------------------------------------------
 dry_run=0
 no_mch=0
-mch="192.168.1.41"
+mch_opt=""
+mch_default="192.168.1.41"
 mch_user="root"
 mch_pass="nat"
 channel_wait=20
@@ -84,7 +85,7 @@ while (($#)); do
     --env)         env_file="$2"; shift 2 ;;
     --dry-run)     dry_run=1; shift ;;
     --no-mch)      no_mch=1; shift ;;
-    --mch)         mch="$2"; shift 2 ;;
+    --mch)         mch_opt="$2"; shift 2 ;;
     --user)        mch_user="$2"; shift 2 ;;
     --password)    mch_pass="$2"; shift 2 ;;
     --channel-wait) channel_wait="$2"; shift 2 ;;
@@ -128,6 +129,7 @@ if (( jtag_freq > jsm_max_jtag_hz )); then
 fi
 
 declare -A bitpath=()
+env_mch=""
 env_vivado=""
 while IFS='=' read -r key value; do
   [[ -z ${key//[[:space:]]/} || $key == \#* ]] && continue
@@ -138,8 +140,13 @@ while IFS='=' read -r key value; do
   value="${value%\'}"; value="${value#\'}"
   # VIVADO= pins the tool; every other key is a bitstream symbol
   if [[ ${key^^} == VIVADO ]]; then env_vivado="$value"; continue; fi
+  if [[ ${key^^} == MCH ]]; then env_mch="$value"; continue; fi
   [[ -n $key ]] && bitpath["$key"]="$value"
 done < "$env_file"
+
+# --mch wins, then MCH= in the env file, then the built-in default
+mch="${mch_opt:-${env_mch:-$mch_default}}"
+info "mch     : $mch"
 
 env_dir="$(cd "$(dirname "$env_file")" && pwd)"
 for key in "${!bitpath[@]}"; do
