@@ -29,6 +29,7 @@
 #   --hw-server URL   hw_server URL (default: localhost:3121)
 #   --rtm-dev NAME    force the RTM hw_device name (default: auto by part)
 #   --amc-dev NAME    force the AMC hw_device name (default: auto by part)
+#   --vivado PATH     Vivado executable (default: $VIVADO, PATH, or newest install)
 #   -h, --help        show this help
 #
 # Examples:
@@ -62,7 +63,8 @@ jtag_freq=$jsm_max_jtag_hz
 hw_server="localhost:3121"
 rtm_dev=""
 amc_dev=""
-vivado="${VIVADO:-/opt/Xilinx/Vivado/2022.2/bin/vivado}"
+vivado_opt=""
+vivado=""           # resolved after parsing: --vivado, $VIVADO, PATH, newest install
 
 warnings=()
 errors=()
@@ -92,10 +94,35 @@ while (($#)); do
     --hw-server)   hw_server="$2"; shift 2 ;;
     --rtm-dev)     rtm_dev="$2"; shift 2 ;;
     --amc-dev)     amc_dev="$2"; shift 2 ;;
+    --vivado)      vivado_opt="$2"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     *)             printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
+
+# --- Vivado discovery ---------------------------------------------------------
+# Any installed version works: the Tcl payload only uses the hardware-manager API.
+# Precedence: --vivado, $VIVADO, PATH, then the newest install found on disk.
+resolve_vivado() {
+  local cand
+  if [[ -n $vivado_opt ]]; then printf '%s' "$vivado_opt"; return 0; fi
+  if [[ -n ${VIVADO:-} ]]; then printf '%s' "$VIVADO"; return 0; fi
+  if cand=$(command -v vivado 2>/dev/null); then printf '%s' "$cand"; return 0; fi
+  local -a found=()
+  while IFS= read -r cand; do
+    [[ -n $cand && -x $cand ]] && found+=("$cand")
+  done < <(ls -1d /opt/Xilinx/Vivado/*/bin/vivado /tools/Xilinx/Vivado/*/bin/vivado \
+                  /opt/xilinx/Vivado/*/bin/vivado "$HOME"/Xilinx/Vivado/*/bin/vivado 2>/dev/null)
+  (( ${#found[@]} )) || return 1
+  printf '%s\n' "${found[@]}" | sort -V | tail -1
+}
+
+if ! vivado="$(resolve_vivado)" || [[ -z $vivado ]]; then
+  err "vivado not found - pass --vivado PATH, set VIVADO, or put it in PATH"
+  err "searched: /opt/Xilinx/Vivado/*/bin/vivado, /tools/Xilinx/Vivado/*/bin/vivado, \$HOME/Xilinx/Vivado/*/bin/vivado"
+  exit 1
+fi
+info "vivado  : $vivado"
 
 # --- preflight ----------------------------------------------------------------
 # With no --map, accept a single slot_map*.md next to this script. More than one

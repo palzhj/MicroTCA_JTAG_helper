@@ -32,7 +32,10 @@ pod.
 
 - NAT-MCH with NAT-JSM, reachable over HTTP (defaults: `192.168.1.41`, `root`/`nat`)
 - Digilent JTAG pod (tested with a JTAG-SMT3 / HS3, USB `0403:6010`)
-- Vivado 2022.2 for `program_fpgas.sh`, **or** openFPGALoader **>= 1.1** for `program_fpgas_ofl.sh`
+- Vivado for `program_fpgas.sh` - **any version** with the `hw_manager` Tcl API (tested with 2022.2).
+  Found automatically: `--vivado PATH`, then `$VIVADO`, then `PATH`, then the newest install under
+  `/opt/Xilinx/Vivado/*`
+- **or** openFPGALoader **>= 1.1** for `program_fpgas_ofl.sh`
 - Bitstreams, supplied locally under `./firmwares/` (not part of this repository)
 
 ## Quick start
@@ -55,8 +58,8 @@ With no `--map`, the script uses the only `slot_map*.md` beside it, and **refuse
 are present.
 
 Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by hand), `--mch ADDR`,
-`--jtag-freq HZ`, `--hw-server URL` (Vivado) or `--ofl PATH` (openFPGALoader). Both scripts accept
-`--help`.
+`--jtag-freq HZ`, `--hw-server URL` and `--vivado PATH` (Vivado) or `--ofl PATH` (openFPGALoader). Both
+scripts accept `--help`.
 
 ## Configuration files
 
