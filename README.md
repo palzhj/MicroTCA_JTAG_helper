@@ -100,6 +100,10 @@ The same file can carry two optional settings:
 5. Report warnings and errors — no cable, empty chain, unknown IDCODE, missing device, programming
    failure, no DONE — plus the time taken per device and per slot.
 
+If two different slots report an **identical chain**, the scripts refuse to program the second one and say
+so: that means the JTAG switch is not routing, and continuing would reprogram the same FPGA while
+reporting success. Override with `--allow-same-chain` only if the chain really is meant to be shared.
+
 ## Measured limits
 
 On a bench with a 36 MB bitstream (see `docs/mch_jtag_selection.md` for the full data):
