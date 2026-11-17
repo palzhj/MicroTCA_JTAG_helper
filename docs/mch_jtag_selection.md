@@ -126,6 +126,17 @@ close/re-open - retrying at 1 MHz then restoring the clock clears it.
 `REGISTER.CONFIG_STATUS.BIT[14]_DONE_PIN` = 1 (EOS = 1, CRC_ERROR = 0);
 `PROGRAM.IS_PROGRAMMED` does not exist on UltraScale+.
 
+### If the pod bypasses the JSM
+
+An on-board programmer (a **JTAG-SMT3** soldered to the AMC, for example) hangs directly off that board's
+FPGA. In that topology the MCH override has **no effect on what the pod sees**: the JSM page can report
+`Active JTAG device: AMC6` / `Overriding Enabled` while every scan still returns the same device, because
+the USB path never passes through the switch. Channel selection only matters when the pod is plugged into
+the JSM front connector.
+
+Both drivers compare the device identity between slots and refuse to program the same FPGA twice - use
+`--allow-same-chain` or single-slot maps if a chain is genuinely shared.
+
 ### Vivado vs openFPGALoader (same bitstream, same pod, slot 1)
 
 Bitstream `top.bit` = 36,343,220 bytes = 290,745,760 bits. At 10 MHz the theoretical floor is **29.07 s**.

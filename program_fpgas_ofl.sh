@@ -41,7 +41,7 @@
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
 #   --no-invert-read-edge disable the above
 #   --cable NAME      JTAG cable (default: digilent_hs3)
-#   --allow-same-chain    allow two slots to report an identical chain (default: refuse)
+#   --allow-same-chain    suppress the identical-chain warning
 #   --vid ID          cable USB vendor id (default: 0x0403)
 #   --pid ID          cable USB product id (default: 0x6010)
 #   --ofl PATH        openFPGALoader binary (default: $OPENFPGALOADER or PATH)
@@ -432,15 +432,12 @@ for slot in "${plan_slots[@]}"; do
 
   # A JTAG switch that is not routing leaves every slot looking identical. That
   # would program the same FPGA over and over while reporting success, so stop.
-  if [[ -n ${prev_chain_sig:-} && $chain_sig == "$prev_chain_sig" && $slot != "${prev_chain_slot:-}" ]]; then
-    if (( allow_same_chain )); then
-      warn "slot $slot: chain is identical to slot ${prev_chain_slot} ($chain_sig) - continuing because --allow-same-chain"
-    else
-      err "slot $slot: chain is identical to slot ${prev_chain_slot} ($chain_sig)"
-      printf '         the JTAG switch does not appear to be routing this slot; refusing to program\n'
-      printf '         the same device again (override with --allow-same-chain)\n'
-      continue
-    fi
+  # openFPGALoader exposes no device DNA, so identical part names cannot be told
+  # apart from a switch that is not routing. Warn only - the Vivado driver, which
+  # can read DNA, is the one that refuses.
+  if [[ -n ${prev_chain_sig:-} && $chain_sig == "$prev_chain_sig" && $slot != "${prev_chain_slot:-}" ]] \
+     && (( ! allow_same_chain )); then
+    warn "slot $slot: chain identical to slot ${prev_chain_slot} ($chain_sig) - no DNA available; this is either another board of the same type, or the pod is not on the switched path"
   fi
   prev_chain_sig="$chain_sig"; prev_chain_slot="$slot"
 

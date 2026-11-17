@@ -101,8 +101,9 @@ The same file can carry two optional settings:
    failure, no DONE — plus the time taken per device and per slot.
 
 If two different slots report an **identical chain**, the scripts refuse to program the second one and say
-so: that means the JTAG switch is not routing, and continuing would reprogram the same FPGA while
-reporting success. Override with `--allow-same-chain` only if the chain really is meant to be shared.
+so — continuing would reprogram the same FPGA while reporting success for both slots. The usual cause is
+that the pod is connected to the board's own programmer rather than the JSM front connector, so the MCH
+channel never reaches it. Override with `--allow-same-chain` only if a chain really is shared.
 
 ## Measured limits
 

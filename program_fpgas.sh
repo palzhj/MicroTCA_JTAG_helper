@@ -310,6 +310,7 @@ evaluate_slot() {
   local -A begun=() fail=() startup=() prog=() took=() done=() eos=() crc=()
   local -a chain=()
   chain_sig=""
+  chain_similar=0
   local -a missing=()
   for role in "${roles[@]}"; do
     begun[$role]=0; fail[$role]=""; startup[$role]=""; prog[$role]=""; took[$role]=""
@@ -325,6 +326,7 @@ evaluate_slot() {
     fi
     [[ $line =~ ^CHAIN_COUNT:\ ([0-9]+) ]] && chain_count="${BASH_REMATCH[1]}"
     [[ $line =~ ^CHAIN_SIG:\ (.*) ]] && chain_sig="${BASH_REMATCH[1]}"
+    [[ $line =~ ^CHAIN_SIMILAR:\ (.*) ]] && chain_similar=1
     [[ $line =~ ^CHAIN\ dev=([^[:space:]]+)\ part=([^[:space:]]+) ]] && chain+=("${BASH_REMATCH[1]} (${BASH_REMATCH[2]})")
     [[ $line =~ ^MISSING\ role=([A-Za-z]+) ]] && missing+=("${BASH_REMATCH[1]}")
     if [[ $line =~ ^PROGRAM_BEGIN\ role=([A-Za-z]+) ]]; then
@@ -398,6 +400,9 @@ evaluate_slot() {
     warn "slot $slot $role: programmed but DONE could not be confirmed (no register read, no startup status)"
   done
 
+  if (( chain_similar )); then
+    warn "slot $slot: chain matches the previous slot by part name only (DNA unavailable) - cannot tell boards apart"
+  fi
   prev_chain_sig="$chain_sig"
 
   local m

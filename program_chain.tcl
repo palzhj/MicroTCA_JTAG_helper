@@ -222,11 +222,27 @@ if {$amc_dev_req ne ""} { set amc_dev $amc_dev_req }
 # A JTAG switch that is not routing leaves every slot looking identical. That
 # would program the same FPGA over and over while reporting success, so stop
 # before touching it.
+# Identify the devices by DNA, not by part name: two slots holding the same
+# board type legitimately have identical part names, but never identical DNA.
 set sig ""
-foreach d $devs { append sig "[get_property PART $d];" }
+set sig_strong 1
+foreach d $devs {
+  set dna ""
+  catch {set dna [get_property REGISTER.DNA $d]}
+  if {$dna eq ""} {
+    set sig_strong 0
+    append sig "[get_property PART $d];"
+  } else {
+    append sig "$dna;"
+  }
+}
 if {$prev_sig ne "" && $sig eq $prev_sig} {
-  puts "CHAIN_UNCHANGED: $sig"
-  die "chain is identical to the previous slot ($sig) - the JTAG switch does not appear to be routing; refusing to program the same device twice"
+  if {$sig_strong} {
+    puts "CHAIN_UNCHANGED: $sig"
+    die "same device DNA as the previous slot ($sig) - the channel did not reach a different device. Check that the JTAG pod is on the JSM front connector and not on the board's own programmer. Refusing to program the same FPGA twice"
+  } else {
+    puts "CHAIN_SIMILAR: $sig"
+  }
 }
 puts "CHAIN_SIG: $sig"
 
