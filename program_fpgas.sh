@@ -29,7 +29,7 @@
 #   --hw-server URL   hw_server URL (default: localhost:3121)
 #   --rtm-dev NAME    force the RTM hw_device name (default: auto by part)
 #   --amc-dev NAME    force the AMC hw_device name (default: auto by part)
-#   --vivado PATH     Vivado executable (default: $VIVADO, PATH, or newest install)
+#   --vivado PATH     Vivado executable (default: $VIVADO, VIVADO= in the env file, PATH, newest install)
 #   -h, --help        show this help
 #
 # Examples:
@@ -100,29 +100,6 @@ while (($#)); do
   esac
 done
 
-# --- Vivado discovery ---------------------------------------------------------
-# Any installed version works: the Tcl payload only uses the hardware-manager API.
-# Precedence: --vivado, $VIVADO, PATH, then the newest install found on disk.
-resolve_vivado() {
-  local cand
-  if [[ -n $vivado_opt ]]; then printf '%s' "$vivado_opt"; return 0; fi
-  if [[ -n ${VIVADO:-} ]]; then printf '%s' "$VIVADO"; return 0; fi
-  if cand=$(command -v vivado 2>/dev/null); then printf '%s' "$cand"; return 0; fi
-  local -a found=()
-  while IFS= read -r cand; do
-    [[ -n $cand && -x $cand ]] && found+=("$cand")
-  done < <(ls -1d /opt/Xilinx/Vivado/*/bin/vivado /tools/Xilinx/Vivado/*/bin/vivado \
-                  /opt/xilinx/Vivado/*/bin/vivado "$HOME"/Xilinx/Vivado/*/bin/vivado 2>/dev/null)
-  (( ${#found[@]} )) || return 1
-  printf '%s\n' "${found[@]}" | sort -V | tail -1
-}
-
-if ! vivado="$(resolve_vivado)" || [[ -z $vivado ]]; then
-  err "vivado not found - pass --vivado PATH, set VIVADO, or put it in PATH"
-  err "searched: /opt/Xilinx/Vivado/*/bin/vivado, /tools/Xilinx/Vivado/*/bin/vivado, \$HOME/Xilinx/Vivado/*/bin/vivado"
-  exit 1
-fi
-info "vivado  : $vivado"
 
 # --- preflight ----------------------------------------------------------------
 # With no --map, accept a single slot_map*.md next to this script. More than one
@@ -151,6 +128,7 @@ if (( jtag_freq > jsm_max_jtag_hz )); then
 fi
 
 declare -A bitpath=()
+env_vivado=""
 while IFS='=' read -r key value; do
   [[ -z ${key//[[:space:]]/} || $key == \#* ]] && continue
   key="${key//[[:space:]]/}"
@@ -158,6 +136,8 @@ while IFS='=' read -r key value; do
   value="${value%"${value##*[![:space:]]}"}"
   value="${value%\"}"; value="${value#\"}"
   value="${value%\'}"; value="${value#\'}"
+  # VIVADO= pins the tool; every other key is a bitstream symbol
+  if [[ ${key^^} == VIVADO ]]; then env_vivado="$value"; continue; fi
   [[ -n $key ]] && bitpath["$key"]="$value"
 done < "$env_file"
 
@@ -166,6 +146,32 @@ for key in "${!bitpath[@]}"; do
   value="${bitpath[$key]}"
   [[ $value == /* ]] || bitpath[$key]="$(realpath -m -- "$env_dir/$value")"
 done
+
+# --- Vivado discovery ---------------------------------------------------------
+# Any installed version works: the Tcl payload only uses the hardware-manager API.
+# Precedence: --vivado, $VIVADO, VIVADO= in the env file, PATH, then the newest
+# install found on disk.
+resolve_vivado() {
+  local cand
+  if [[ -n $vivado_opt ]]; then printf '%s' "$vivado_opt"; return 0; fi
+  if [[ -n ${VIVADO:-} ]]; then printf '%s' "$VIVADO"; return 0; fi
+  if [[ -n ${env_vivado:-} ]]; then printf '%s' "$env_vivado"; return 0; fi
+  if cand=$(command -v vivado 2>/dev/null); then printf '%s' "$cand"; return 0; fi
+  local -a found=()
+  while IFS= read -r cand; do
+    [[ -n $cand && -x $cand ]] && found+=("$cand")
+  done < <(ls -1d /opt/Xilinx/Vivado/*/bin/vivado /tools/Xilinx/Vivado/*/bin/vivado \
+                  /opt/xilinx/Vivado/*/bin/vivado "$HOME"/Xilinx/Vivado/*/bin/vivado 2>/dev/null)
+  (( ${#found[@]} )) || return 1
+  printf '%s\n' "${found[@]}" | sort -V | tail -1
+}
+
+if ! vivado="$(resolve_vivado)" || [[ -z $vivado ]]; then
+  err "vivado not found - pass --vivado PATH, set VIVADO, or put it in PATH"
+  err "searched: /opt/Xilinx/Vivado/*/bin/vivado, /tools/Xilinx/Vivado/*/bin/vivado, \$HOME/Xilinx/Vivado/*/bin/vivado"
+  exit 1
+fi
+info "vivado  : $vivado"
 
 # slot -> symbol, parsed from the |AMC ...| / |RTM ...| rows of the map
 declare -A sym_of=()

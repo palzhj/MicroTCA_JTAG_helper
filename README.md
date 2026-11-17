@@ -33,8 +33,9 @@ pod.
 - NAT-MCH with NAT-JSM, reachable over HTTP (defaults: `192.168.1.41`, `root`/`nat`)
 - Digilent JTAG pod (tested with a JTAG-SMT3 / HS3, USB `0403:6010`)
 - Vivado for `program_fpgas.sh` - **any version** with the `hw_manager` Tcl API (tested with 2022.2).
-  Found automatically: `--vivado PATH`, then `$VIVADO`, then `PATH`, then the newest install under
-  `/opt/Xilinx/Vivado/*`
+  Found in this order: `--vivado PATH`, `$VIVADO`, a `VIVADO=` entry in the env file, `PATH`, then the
+  newest install under `/opt/Xilinx/Vivado/*` (also `/tools` and `$HOME`). The chosen binary is printed
+  at start-up.
 - **or** openFPGALoader **>= 1.1** for `program_fpgas_ofl.sh`
 - Bitstreams, supplied locally under `./firmwares/` (not part of this repository)
 
