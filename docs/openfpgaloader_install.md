@@ -258,10 +258,44 @@ ir: 1 isc_done 1 isc_ena 0 init 1 done 1
 
 ## 9. Uninstall
 
+### Installed with apt (Method A)
+
 ```bash
-rm -rf ~/.local/opt/ofl ~/.local/bin/openFPGALoader
-# if installed via apt:
 sudo apt remove openfpgaloader
+sudo apt autoremove          # optional: drop orphaned dependencies
 ```
 
-Nothing outside the chosen prefix is modified by Method B.
+The package owns every path it uses, so nothing is left behind:
+
+| Path | Contents |
+|---|---|
+| `/usr/bin/openFPGALoader` | binary |
+| `/usr/lib/udev/rules.d/99-openfpgaloader.rules` | USB permission rule |
+| `/usr/share/openFPGALoader/` | spiOverJtag bitstreams |
+| `/usr/share/man/man1/openFPGALoader.1.gz`, `/usr/share/doc/openfpgaloader/` | man page, docs |
+
+`purge` behaves the same as `remove` here - the package ships no conffiles under `/etc`, and it writes no
+user configuration (nothing appears in `~/.config`).
+
+Verify it is gone:
+
+```bash
+command -v openFPGALoader || echo "removed"
+dpkg -l openfpgaloader 2>/dev/null | grep '^ii' || echo "not installed"
+```
+
+### Installed from the tarball (Method B)
+
+```bash
+rm -rf ~/.local/opt/ofl ~/.local/bin/openFPGALoader
+```
+
+Nothing outside that prefix is touched. If a `LD_LIBRARY_PATH` export was added to a shell profile,
+remove that line too.
+
+### Notes
+
+- Removing the package also removes its udev rule. If Vivado is installed, Xilinx's own rules
+  (`/etc/udev/rules.d/52-xilinx-*-usb.rules`) still grant USB access, so the pod keeps working with Vivado.
+- After removal `program_fpgas_ofl.sh` reports `openFPGALoader not in PATH`, which is expected.
+  `program_fpgas.sh` (Vivado) is unaffected.
