@@ -30,7 +30,7 @@ pod.
 
 ## Requirements
 
-- NAT-MCH with NAT-JSM, reachable over HTTP (defaults: `10.19.198.31`, `root`/`nat`)
+- NAT-MCH with NAT-JSM, reachable over HTTP (defaults: `192.168.1.41`, `root`/`nat`)
 - Digilent JTAG pod (tested with a JTAG-SMT3 / HS3, USB `0403:6010`)
 - Vivado 2022.2 for `program_fpgas.sh`, **or** openFPGALoader **>= 1.1** for `program_fpgas_ofl.sh`
 - Bitstreams, supplied locally under `./firmwares/` (not part of this repository)

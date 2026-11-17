@@ -3,11 +3,14 @@
 | Field | Value |
 |---|---|
 | Scope | How the JTAG channel is selected on the u4FCP bench MCH, and how it behaves |
-| MCH | `10.19.198.31` |
+| MCH | `192.168.1.41` |
 | Equipment | NAT-MCH (M4) + NAT-JSM JTAG switch module, uTCA shelf |
 | Verified on | 2026-11-17, MCH firmware **V2.23.6 Final (r21087)**, 13 Sep 2023 |
 | Reference | `NAT-MCH_UsersManual.pdf`, V1.41 (28 Sep 2021), §7.3.3 / §7.3.4 |
 | Status | Verified by direct test on the live unit |
+
+Bench measurements in this document were taken against the unit while it was addressed as
+`10.19.198.31`; the scripts now default to `192.168.1.41`.
 
 > The PDF is V1.41 (2021) while the unit runs V2.23.6 (2023). Where they disagree, the live unit wins —
 > see [§7 Discrepancies](#7-discrepancies-vs-the-manual).
@@ -51,14 +54,14 @@ the pod/tool will report no devices. Check `show_fru` before selecting.
 ```bash
 # select a target: FrontActiveDev = 0..11  (0 = AMC1)
 curl -u root:nat -d 'FrontActiveDev=0&front_jtag_dev=override_front' \
-     http://10.19.198.31/goform/ctrl_jtag_jsm_override
+     http://192.168.1.41/goform/ctrl_jtag_jsm_override
 
 # hand control back to the rotary switch
 curl -u root:nat -d 'front_jtag_dev=reset_overriding' \
-     http://10.19.198.31/goform/ctrl_jtag_jsm_override
+     http://192.168.1.41/goform/ctrl_jtag_jsm_override
 
 # read current state
-curl -u root:nat http://10.19.198.31/goform/view_jtag_jsm_par
+curl -u root:nat http://192.168.1.41/goform/view_jtag_jsm_par
 ```
 
 Both buttons share one form; the `front_jtag_dev` value is the discriminator
@@ -209,7 +212,7 @@ show_sensorinfo <fru_id>      # sensors / power state for a FRU
 mch                           # full MCH configuration, incl. xvc access flag
 ```
 
-Telnet to `10.19.198.31` (no password prompt on this unit); web UI at `http://10.19.198.31/`
+Telnet to `192.168.1.41` (no password prompt on this unit); web UI at `http://192.168.1.41/`
 with Basic auth `root` / `nat`.
 
 ---

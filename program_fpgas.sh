@@ -19,7 +19,7 @@
 #   --env FILE        bitstream path table (default: bit_files.env beside this script)
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
-#   --mch ADDR        MCH address (default: 10.19.198.31)
+#   --mch ADDR        MCH address (default: 192.168.1.41)
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
@@ -52,7 +52,7 @@ jsm_max_jtag_hz=10000000
 # --- defaults -----------------------------------------------------------------
 dry_run=0
 no_mch=0
-mch="10.19.198.31"
+mch="192.168.1.41"
 mch_user="root"
 mch_pass="nat"
 channel_wait=20
