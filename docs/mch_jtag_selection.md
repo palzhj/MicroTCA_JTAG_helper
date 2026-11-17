@@ -126,6 +126,23 @@ close/re-open - retrying at 1 MHz then restoring the clock clears it.
 `REGISTER.CONFIG_STATUS.BIT[14]_DONE_PIN` = 1 (EOS = 1, CRC_ERROR = 0);
 `PROGRAM.IS_PROGRAMMED` does not exist on UltraScale+.
 
+### The web override is not reliable on every JSM
+
+On the bench unit (NAT-JSM PCB V1.2, **FPGA V1.2, release 2015-02-05**) the override is accepted by the
+MCH but only occasionally acted on by the JSM. The request itself is correct - the page shows the requested
+device and `Overriding Enabled`, and the same result is obtained with POST, GET-with-query or a browser.
+
+| Action | Observed |
+|---|---|
+| Select AMC12 | chain went empty - the switch moved |
+| Select AMC1 again | still empty - stuck on AMC12 |
+| Press **Reset** | chain back on AMC1 (the rotary position) |
+| Later overrides | ignored |
+
+The MCH baseboard FPGA is V1.14, which meets the >= 1.10 requirement, so the JSM's 2015 firmware is the
+weak point. Until it is updated, drive the rotary switch by hand and use `--no-override`: the drivers then
+verify the MCH reports the expected channel and never touch the override.
+
 ### If the pod bypasses the JSM
 
 An on-board programmer (a **JTAG-SMT3** soldered to the AMC, for example) hangs directly off that board's

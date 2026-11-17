@@ -19,6 +19,7 @@
 #   --env FILE        bitstream path table (default: bit_files.env beside this script)
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
+#   --no-override     leave the rotary switch in charge; verify the channel, never override
 #   --mch ADDR        MCH address (default: MCH= in the env file, else 192.168.1.41)
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
@@ -54,6 +55,7 @@ jsm_max_jtag_hz=10000000
 # --- defaults -----------------------------------------------------------------
 dry_run=0
 no_mch=0
+no_override=0
 mch_opt=""
 mch_default="192.168.1.41"
 mch_user="root"
@@ -88,6 +90,7 @@ while (($#)); do
     --env)         env_file="$2"; shift 2 ;;
     --dry-run)     dry_run=1; shift ;;
     --no-mch)      no_mch=1; shift ;;
+    --no-override) no_override=1; shift ;;
     --mch)         mch_opt="$2"; shift 2 ;;
     --user)        mch_user="$2"; shift 2 ;;
     --password)    mch_pass="$2"; shift 2 ;;
@@ -265,6 +268,7 @@ mch_state() {
     mch_dev="?"; mch_status="Waiting for Xilinx Virtual Cable completion."
     return 0
   fi
+  if [[ $compact == *"Overriding Enabled"* ]]; then mch_ovr="Enabled"; else mch_ovr="Disabled"; fi
   if [[ $compact == *">Ready<"* ]]; then
     sel=$(printf '%s' "$compact" | awk -v RS='</select>' '/FrontActiveDev/ {print; exit}')
     mch_dev=$(printf '%s' "$sel" | grep -o "selected value='[0-9]*'>[^<]*" | sed 's/.*>//' | tail -1)
@@ -276,7 +280,9 @@ mch_state() {
 
 select_channel() {
   local slot=$1 deadline
-  if ! curl -s --max-time 10 -u "$mch_user:$mch_pass" \
+  if (( no_override )); then
+    info "slot $slot: --no-override - leaving the rotary switch in charge"
+  elif ! curl -s --max-time 10 -u "$mch_user:$mch_pass" \
         -d "FrontActiveDev=$((slot - 1))&front_jtag_dev=override_front" \
         "http://$mch/goform/ctrl_jtag_jsm_override" -o /dev/null; then
     err "slot $slot: cannot select MCH channel (is $mch reachable?)"
@@ -293,8 +299,16 @@ select_channel() {
     err "slot $slot: MCH channel switch blocked (status: $mch_status). A JTAG tool session may still be attached; close it and retry."
     return 1
   fi
-  if [[ -n $mch_dev && $mch_dev != "?" && $mch_dev != "AMC$slot" ]]; then
-    warn "slot $slot: MCH reports active channel $mch_dev, expected AMC$slot"
+  if (( no_override )) && [[ ${mch_ovr:-} == Enabled ]]; then
+    err "slot $slot: an override is active, so the rotary switch is masked - press Reset on the JSM page, or drop --no-override"
+    return 1
+  fi
+  if [[ $mch_dev != "AMC$slot" ]]; then
+    if (( no_override )); then
+      err "slot $slot: MCH reports ${mch_dev:-unknown}, expected AMC$slot - set the rotary switch to this slot, or drop --no-override"
+      return 1
+    fi
+    warn "slot $slot: MCH reports active channel ${mch_dev:-unknown}, expected AMC$slot"
   else
     info "slot $slot: MCH channel selected (${mch_dev/AMC/AMC})"
   fi

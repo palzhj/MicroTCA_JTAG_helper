@@ -58,7 +58,8 @@ exactly that set. To program a subset, give a map that lists only those slots (`
 With no `--map`, the script uses the only `slot_map*.md` beside it, and **refuses to guess** when several
 are present.
 
-Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by hand), `--mch ADDR`,
+Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by hand),
+`--no-override` (rotary switch selects the channel; verify only), `--mch ADDR`,
 `--jtag-freq HZ`, `--hw-server URL` and `--vivado PATH` (Vivado) or `--ofl PATH` (openFPGALoader). Both
 scripts accept `--help`.
 
@@ -89,6 +90,17 @@ The same file can carry two optional settings:
 |---|---|---|
 | `MCH=` | MCH address used for channel selection | `--mch` > this entry > `192.168.1.41` |
 | `VIVADO=` | Vivado binary for `program_fpgas.sh` | `--vivado` > `$VIVADO` > this entry > `PATH` > newest install |
+
+## Selecting the channel reliably
+
+The MCH web override is accepted on every unit, but on some JSM firmware it is **not acted on**: the page
+shows the requested device while the switch stays put. If channel switching behaves erratically, drive the
+rotary switch on the JSM faceplate by hand and run with `--no-override`. The scripts then verify the MCH
+reports the expected channel and never touch the override:
+
+```bash
+./program_fpgas.sh --map slot_map_ddr4.md --no-override
+```
 
 ## How it works
 
