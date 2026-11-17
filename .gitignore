@@ -1,0 +1,9 @@
+# bitstreams are supplied locally; bit_files.env points here
+firmwares/
+
+# tool byproducts
+.Xil/
+.vivado-ai/
+__pycache__/
+*.log
+*.jou

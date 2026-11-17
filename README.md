@@ -1,0 +1,110 @@
+# MicroTCA JTAG helper
+
+Program FPGAs on a MicroTCA shelf through an **NAT-MCH + NAT-JSM** JTAG switch: the MCH selects the
+JTAG channel for a slot, and a Digilent pod on the JSM front connector performs the download.
+
+Two interchangeable back-ends are provided — Xilinx **Vivado** and **openFPGALoader** — driving the same
+slot map, so you can pick per machine.
+
+## Why this exists
+
+On a MicroTCA shelf the FPGAs of all AMC/RTM slots sit behind a JTAG switch module. Only one slot's chain
+is routed to the front-panel connector at a time, selected either by the JSM rotary switch or by a web
+override on the MCH. These scripts automate that selection per slot and then program the devices in a
+defined order, reporting failures instead of leaving you to interpret tool output.
+
+XVC is deliberately not used: it tunnels every JTAG transaction over TCP and is far slower than a local
+pod.
+
+## Contents
+
+| Path | Purpose |
+|---|---|
+| `program_fpgas.sh` | Driver using **Vivado** (`program_chain.tcl`) |
+| `program_fpgas_ofl.sh` | Driver using **openFPGALoader** (faster start-up) |
+| `program_chain.tcl` | Vivado batch payload: connect, detect, program RTM then AMC, check DONE |
+| `slot_map_ddr4.md`, `slot_map_waveform.md` | Example slot maps (which bitstream per slot) |
+| `bit_files.env` | Bitstream paths, keyed by the letters used in the maps |
+| `docs/mch_jtag_selection.md` | How the MCH/JSM channel selection works, with measurements |
+| `docs/openfpgaloader_install.md` | Installing openFPGALoader (including its pitfalls) |
+
+## Requirements
+
+- NAT-MCH with NAT-JSM, reachable over HTTP (defaults: `10.19.198.31`, `root`/`nat`)
+- Digilent JTAG pod (tested with a JTAG-SMT3 / HS3, USB `0403:6010`)
+- Vivado 2022.2 for `program_fpgas.sh`, **or** openFPGALoader **>= 1.1** for `program_fpgas_ofl.sh`
+- Bitstreams, supplied locally under `./firmwares/` (not part of this repository)
+
+## Quick start
+
+```bash
+# see what would be programmed, touching nothing
+./program_fpgas.sh --map slot_map_ddr4.md --dry-run
+
+# program one slot with Vivado
+./program_fpgas.sh --map slot_map_ddr4.md --slot 1
+
+# same, with openFPGALoader
+./program_fpgas_ofl.sh --map slot_map_ddr4.md --slot 1
+```
+
+With no `--map`, the script uses the only `slot_map*.md` beside it, and **refuses to guess** when several
+are present.
+
+Common options: `--slot N`, `--dry-run`, `--no-mch` (channel already set by hand), `--mch ADDR`,
+`--jtag-freq HZ`, `--hw-server URL` (Vivado) or `--ofl PATH` (openFPGALoader). Both scripts accept
+`--help`.
+
+## Configuration files
+
+`slot_map_*.md` decides which bitstream each slot gets; `-` means "no load" and the slot is skipped:
+
+```
+|Slot| 1 | 2 | ... | 12 |
+|AMC | B | D | ... | D  |
+|RTM | - | E | ... | E  |
+```
+
+`bit_files.env` maps those letters to files. Relative paths are resolved against the env file's own
+directory, so the scripts work from any working directory:
+
+```
+A=./firmwares/ddr4_selftest/top.bit
+B=./firmwares/WR/top.bit
+```
+
+## How it works
+
+1. Select the slot's channel on the MCH (`FrontActiveDev` override over HTTP).
+2. Wait for the JSM to report `Ready` — a deferred switch is reported rather than silently ignored.
+3. Detect the chain and map roles to devices: UltraScale/UltraScale+ is the **AMC**, 7-series is the
+   **RTM**.
+4. Program the RTM first, then the AMC, and verify DONE from the configuration status register.
+5. Report warnings and errors — no cable, empty chain, unknown IDCODE, missing device, programming
+   failure, no DONE — plus the time taken per device and per slot.
+
+## Measured limits
+
+On a bench with a 36 MB bitstream (see `docs/mch_jtag_selection.md` for the full data):
+
+| Item | Result |
+|---|---|
+| Maximum usable JTAG clock | **10 MHz** (JSM rating; 15 MHz corrupts on both tools) |
+| Transfer at 10 MHz | 30.3-30.6 s, ~95 % of the theoretical 29.07 s |
+| Vivado, end to end | ~47.6 s per slot |
+| openFPGALoader, end to end | ~31.4 s per slot |
+| openFPGALoader at 10 MHz | requires `--invert-read-edge` |
+
+`--invert-read-edge` is enabled by default in `program_fpgas_ofl.sh`; without it the ceiling drops to
+7 MHz.
+
+## Notes
+
+- openFPGALoader **0.13.1** (current distro package) cannot identify some newer parts; the scripts warn
+  when the installed version is 0.x. Use 1.1.x.
+- The scripts never touch configuration flash; programming is volatile.
+- Default MCH credentials are the vendor defaults (`root`/`nat`) — change them for any shared network.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
