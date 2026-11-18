@@ -132,9 +132,12 @@ The override is reliable, but only once **two conditions** are met. Both were is
 
 1. **Nothing may hold the JTAG cable.** A running `hw_server` - which Vivado leaves behind after every
    batch run - makes the MCH accept the override while the switch stays put. Killing it is what finally
-   made the switch move.
-2. **The override must be sent several times.** A single POST is ignored; time does not help. One POST
-   followed by five seconds of waiting did nothing, while three to five POSTs switched reliably.
+   made the switch move. The cable is free **45-55 ms** after the kill (measured over repeated attempts),
+   so a short sleep is enough; no long wait is required.
+2. **The override must be sent at least twice.** A single POST is never enough - three out of three clean
+   attempts left the switch where it was, and waiting does not help (1 POST + 5 s: no switch). Two POSTs
+   switch reliably, whether both name the new channel or one names the current channel first. The drivers
+   default to `--override-repeats 3` for margin.
 
 With both satisfied, the switch follows every request, proven by device DNA (unique per die):
 

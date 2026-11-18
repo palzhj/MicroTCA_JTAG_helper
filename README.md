@@ -98,8 +98,8 @@ each slot. Two things are required for the switch to actually move, both establi
 
 1. **Nothing may hold the JTAG cable.** Vivado leaves `hw_server` running after a batch run, and while it
    holds the cable the MCH accepts the override but the switch never moves. The drivers stop it first.
-2. **Send the override several times.** A single POST is ignored; `--override-repeats` (default 5) matches
-   the measured behaviour.
+2. **Send the override at least twice.** A single POST is never enough; two switch reliably and the
+   drivers default to `--override-repeats 3`. The cable needs only ~50 ms after `hw_server` is killed.
 
 With both, the switch follows every request. Verified by reading the device DNA per channel - each board
 returns a different value.

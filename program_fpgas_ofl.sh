@@ -32,8 +32,8 @@
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
 #   --mch ADDR        MCH address (default: MCH= in the env file, else 192.168.1.41)
-#   --override-repeats N  send the channel override N times (default: 5 - the JSM
-#                     ignores the first few requests)
+#   --override-repeats N  send the channel override N times (default: 3). A single
+#                     POST is ignored; 2 is the measured minimum.
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
@@ -66,7 +66,7 @@ jsm_max_jtag_hz=10000000
 # --- defaults -----------------------------------------------------------------
 dry_run=0
 no_mch=0
-override_repeats=5
+override_repeats=3
 mch_opt=""
 mch_default="192.168.1.41"
 mch_user="root"
