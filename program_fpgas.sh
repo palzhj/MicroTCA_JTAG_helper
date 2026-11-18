@@ -25,7 +25,7 @@
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
-#   --settle S        pause after switching channel, before Vivado (default: 1.5)
+#   --settle S        pause after switching channel (default: 0.3; measured 45 ms)
 #   --timeout S       Vivado timeout per slot (default: 900)
 #   --jtag-freq HZ    JTAG clock, capped at the NAT-JSM maximum (default: 10000000)
 #   --hw-server URL   hw_server URL (default: localhost:3121)
@@ -62,7 +62,7 @@ mch_default="192.168.1.41"
 mch_user="root"
 mch_pass="nat"
 channel_wait=20
-settle=1.5
+settle=0.3
 vivado_timeout=900
 jtag_freq=$jsm_max_jtag_hz
 hw_server="localhost:3121"
@@ -287,7 +287,7 @@ select_channel() {
   if pgrep -x hw_server >/dev/null 2>&1; then
     info "slot $slot: stopping hw_server so the switch can move"
     pkill -x hw_server 2>/dev/null
-    sleep 1
+    sleep 0.2      # cable is free 45-55 ms after the kill
   fi
   local n
   for ((n = 1; n <= override_repeats; n++)); do

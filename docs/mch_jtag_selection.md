@@ -140,6 +140,9 @@ The override is reliable, but only once **two conditions** are met. Both were is
    switch reliably, whether both name the new channel or one names the current channel first. The drivers
    default to `--override-repeats 3` for margin.
 
+The new chain is scannable **~45 ms** after the last POST (measured 41-45 ms over six switches), so no
+settling wait is needed either. `--settle` therefore defaults to 0.3 s in both drivers.
+
 With both satisfied, the switch follows every request, proven by device DNA (unique per die):
 
 | Channel | DNA |
@@ -295,6 +298,8 @@ slot whose chain actually contains a 7-series device (slot 8 does, slot 1 does n
 | 16 | Cable release after killing `hw_server` | 45-55 ms |
 | 17 | Two-slot run (1 and 8) through the driver | Different chains; slot 8 also exposes `xc7k325t` |
 | 18 | Clock sweep 10/6/4/2/1 MHz | All scan at 10 MHz; 15 MHz fails on both tools |
+| 19 | Time from last POST until the new chain scans | 41-45 ms |
+| 20 | Two-slot full run at 0.3 s settle | 96 s total (was 102 s), both boards programmed |
 
 State at the end of testing: override enabled, XVC disabled. The override is RAM-only, so a reboot returns
 the unit to its rotary-switch position.

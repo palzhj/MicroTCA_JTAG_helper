@@ -37,7 +37,7 @@
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
-#   --settle S        pause after switching channel (default: 0.5)
+#   --settle S        pause after switching channel (default: 0.3; measured 45 ms)
 #   --timeout S       openFPGALoader timeout per device (default: 600)
 #   --freq HZ         JTAG clock (default: 10000000, the NAT-JSM maximum)
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
@@ -72,7 +72,7 @@ mch_default="192.168.1.41"
 mch_user="root"
 mch_pass="nat"
 channel_wait=20
-settle=0.5
+settle=0.3
 ofl_timeout=600
 jtag_freq=$jsm_max_jtag_hz
 allow_same_chain=0
@@ -289,7 +289,7 @@ select_channel() {
   if pgrep -x hw_server >/dev/null 2>&1; then
     info "slot $slot: stopping hw_server so the switch can move"
     pkill -x hw_server 2>/dev/null
-    sleep 1
+    sleep 0.2      # cable is free 45-55 ms after the kill
   fi
   local n
   for ((n = 1; n <= override_repeats; n++)); do
