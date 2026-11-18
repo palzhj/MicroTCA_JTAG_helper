@@ -43,6 +43,7 @@
 #   --no-invert-read-edge disable the above
 #   --cable NAME      JTAG cable (default: digilent_hs3)
 #   --allow-same-chain    program even if two slots report an identical chain
+#   --scan                only report the chain of every slot; program nothing
 #   --vid ID          cable USB vendor id (default: 0x0403)
 #   --pid ID          cable USB product id (default: 0x6010)
 #   --ofl PATH        openFPGALoader binary (default: $OPENFPGALOADER or PATH)
@@ -74,6 +75,7 @@ settle=0.5
 ofl_timeout=600
 jtag_freq=$jsm_max_jtag_hz
 allow_same_chain=0
+scan_only=0
 cable="digilent_hs3"
 vid="0x0403"
 invert_read_edge=1
@@ -82,6 +84,7 @@ ofl="${OPENFPGALOADER:-openFPGALoader}"
 
 warnings=()
 errors=()
+scan_rows=()
 out_file="$(mktemp)"
 trap 'rm -f "$out_file"' EXIT
 
@@ -112,6 +115,7 @@ while (($#)); do
     --freq)         jtag_freq="$2"; shift 2 ;;
     --cable)        cable="$2"; shift 2 ;;
     --allow-same-chain) allow_same_chain=1; shift ;;
+    --scan)             scan_only=1; shift ;;
     --vid)          vid="$2"; shift 2 ;;
     --invert-read-edge)    invert_read_edge=1; shift ;;
     --no-invert-read-edge) invert_read_edge=0; shift ;;
@@ -444,6 +448,12 @@ for slot in "${plan_slots[@]}"; do
 
   detect_chain || continue
 
+  if (( scan_only )); then
+    info "slot $slot: ${chain_sig:-<empty>}"
+    scan_rows+=("$(printf '%-4s %s' "$slot" "${chain_sig:-<empty>}")")
+    continue
+  fi
+
   # A JTAG switch that is not routing leaves every slot looking identical. That
   # would program the same FPGA over and over while reporting success, so stop.
   # openFPGALoader exposes no device DNA, so identical part names cannot be told
@@ -481,6 +491,15 @@ for slot in "${plan_slots[@]}"; do
 done
 
 # --- summary ------------------------------------------------------------------
+if (( scan_only )); then
+  printf '\n%s\n' "slot chain"
+  printf '%s\n' "${scan_rows[@]}"
+  printf '\nScan only - nothing programmed.\n'
+  printf 'Identical results only prove the channel moved if you also scan a slot that is EMPTY:\n'
+  printf 'a populated and an empty slot returning the same device means the switch did not move.\n'
+  exit 0
+fi
+
 printf '\n%s\n' "--------------------------------------------------------------"
 if (( ${#errors[@]} )); then
   printf 'RESULT: FAILED - %d error(s), %d warning(s)\n' "${#errors[@]}" "${#warnings[@]}"

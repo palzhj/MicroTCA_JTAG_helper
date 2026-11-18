@@ -139,6 +139,12 @@ device and `Overriding Enabled`, and the same result is obtained with POST, GET-
 | Press **Reset** | chain back on AMC1 (the rotary position) |
 | Later overrides | ignored |
 
+Confirmed again on a crate with five u4FCP boards fitted (AMC1, 8, 9, 10, 11): with the override set to
+AMC6 or AMC12 - both **empty** - the scan still returned the same `xcku15p`. A populated slot and an empty
+slot are therefore indistinguishable through the override, which is only possible if the switch is not
+moving. (`--scan` on a populated-only map looks like success for that reason: every channel reports a
+device either way.)
+
 The MCH baseboard FPGA is V1.14, which meets the >= 1.10 requirement, so the JSM's 2015 firmware is the
 weak point. Until it is updated, drive the rotary switch by hand and use `--no-override`: the drivers then
 verify the MCH reports the expected channel and never touch the override.
