@@ -453,6 +453,17 @@ for slot in "${plan_slots[@]}"; do
   if (( scan_only )); then
     info "slot $slot: ${chain_sig:-<empty>}"
     scan_rows+=("$(printf '%-4s %s' "$slot" "${chain_sig:-<empty>}")")
+    # report roles that the map asks for but the chain cannot serve
+    for role in RTM AMC; do
+      [[ -z ${role_path["$slot:$role"]:-} ]] && continue
+      if ! idx=$(role_index "$role"); then
+        if [[ $role == RTM ]]; then
+          warn "slot $slot: RTM bitstream in the map, but no 7-series device in the chain - would be skipped"
+        else
+          err "slot $slot: AMC bitstream in the map, but no UltraScale device in the chain"
+        fi
+      fi
+    done
     continue
   fi
 
