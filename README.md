@@ -148,8 +148,9 @@ On a bench with a 36 MB bitstream (see `docs/mch_jtag_selection.md` for the full
 `--invert-read-edge` is enabled by default in `program_fpgas_ofl.sh`; without it the ceiling drops to
 7 MHz.
 
-Slots differ: some are marginal at 10 MHz (AMC12 is known to be). When a slot fails, both drivers retry it
-once at `--fallback-freq` (default **7.5 MHz**) and continue at that clock if the retry works. Set
+Any slot can be marginal at 10 MHz - AMC12 is just the case observed so far. When a slot fails, both
+drivers retry it once at `--fallback-freq` (default **7.5 MHz**) and continue at that clock if the retry
+works. This covers both scan and programming failures, but not the chain-identity guard. Set
 `--fallback-freq` equal to `--freq` to disable the fallback.
 
 ## Notes

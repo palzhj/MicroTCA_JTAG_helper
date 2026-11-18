@@ -490,10 +490,18 @@ for slot in "${plan_slots[@]}"; do
   # A slot with a marginal link can work at 7.5 MHz when it fails at 10 MHz, so
   # retry the slot once at the fallback clock and discard the failed attempt.
   if (( ${#errors[@]} > err_mark )) && (( fallback_freq > 0 && fallback_freq < jtag_freq )); then
-    warn "slot $slot: failed at ${jtag_freq} Hz - retrying at ${fallback_freq} Hz"
-    errors=("${errors[@]:0:$err_mark}")
-    jtag_freq=$fallback_freq
-    run_slot "$slot"
+    new_errs=$(printf '%s\n' "${errors[@]:$err_mark}")
+    case "$new_errs" in
+      # a guard decision, not a link problem - a slower clock cannot help
+      *"identical to the previous slot"*|*"same device DNA"*)
+        : ;;
+      *)
+        warn "slot $slot: failed at ${jtag_freq} Hz - retrying at ${fallback_freq} Hz"
+        errors=("${errors[@]:0:$err_mark}")
+        jtag_freq=$fallback_freq
+        run_slot "$slot"
+        ;;
+    esac
   fi
 done
 

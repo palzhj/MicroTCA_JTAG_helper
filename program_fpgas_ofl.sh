@@ -429,39 +429,51 @@ role_index() {
 # --- program one device -------------------------------------------------------
 program_device() {
   local slot=$1 role=$2 idx=$3 bit=$4
-  local out rc t0 t1
-  info "slot $slot $role: downloading $(basename "$bit") (index $idx, $jtag_freq Hz)"
-  t0=$(date +%s%N)
-  timeout "$ofl_timeout" "$ofl" "${ofl_common[@]}" --index-chain "$idx" "$bit" > "$out_file" 2>&1
-  rc=$?
-  out=$(tr -d '\000' < "$out_file")
-  t1=$(date +%s%N)
-  local took=$(( (t1 - t0) / 1000000 ))
+  local out rc t0 t1 took freq primary="$jtag_freq" done_bit last_err=""
+  local -a freqs=("$primary")
+  # Marginal links can fail during programming too, so apply the same fallback
+  # as the scan: one retry at a slower clock, reporting only the final result.
+  (( fallback_freq > 0 && fallback_freq < primary )) && freqs+=("$fallback_freq")
 
-  if (( rc == 124 )); then
-    err "slot $slot $role: openFPGALoader timed out after ${ofl_timeout}s"
-    return 1
-  fi
-  if [[ $out == *"Unknown device with IDCODE"* ]]; then
-    err "slot $slot $role: unknown IDCODE - bad scan; try a lower --freq"
-    return 1
-  fi
-  if (( rc != 0 )) || [[ $out == *"fail"* && $out != *"Done"* ]]; then
-    err "slot $slot $role: programming failed (exit $rc): $(printf '%s' "$out" | grep -iE 'fail|error' | head -1)"
-    return 1
-  fi
+  for freq in "${freqs[@]}"; do
+    if (( freq != primary )); then
+      warn "slot $slot $role: failed at ${primary} Hz - retrying at ${freq} Hz"
+      set_freq "$freq"
+    fi
+    info "slot $slot $role: downloading $(basename "$bit") (index $idx, ${jtag_freq} Hz)"
+    t0=$(date +%s%N)
+    timeout "$ofl_timeout" "$ofl" "${ofl_common[@]}" --index-chain "$idx" "$bit" > "$out_file" 2>&1
+    rc=$?
+    out=$(tr -d '\000' < "$out_file")
+    t1=$(date +%s%N)
+    took=$(( (t1 - t0) / 1000000 ))
 
-  # openFPGALoader prints the status register after loading:
-  #   ir: 1 isc_done 1 isc_ena 0 init 1 done 1
-  local done_bit="?"
-  if [[ $out =~ done\ ([01]) ]]; then
-    done_bit="${BASH_REMATCH[1]}"
-  fi
-  case "$done_bit" in
-    0) err "slot $slot $role: no DONE - status register reads done 0"; return 1 ;;
-    1) ok "slot $slot $role: programmed, DONE=1 in $(fmt_ms "$took")"; return 0 ;;
-    *) warn "slot $slot $role: programmed in $(fmt_ms "$took") but DONE could not be confirmed"; return 0 ;;
-  esac
+    if (( rc == 124 )); then
+      last_err="timed out after ${ofl_timeout}s"
+      continue
+    fi
+    if [[ $out == *"Unknown device with IDCODE"* ]]; then
+      last_err="unknown IDCODE - bad scan"
+      continue
+    fi
+    if (( rc != 0 )) || [[ $out == *"fail"* && $out != *"Done"* ]]; then
+      last_err="programming failed (exit $rc): $(printf '%s' "$out" | grep -iE 'fail|error' | head -1)"
+      continue
+    fi
+
+    # openFPGALoader prints the status register after loading:
+    #   ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+    done_bit="?"
+    [[ $out =~ done\ ([01]) ]] && done_bit="${BASH_REMATCH[1]}"
+    case "$done_bit" in
+      0) last_err="no DONE - status register reads done 0"; continue ;;
+      1) ok "slot $slot $role: programmed, DONE=1 in $(fmt_ms "$took")"; return 0 ;;
+      *) warn "slot $slot $role: programmed in $(fmt_ms "$took") but DONE could not be confirmed"; return 0 ;;
+    esac
+  done
+
+  err "slot $slot $role: $last_err"
+  return 1
 }
 
 # --- main loop ----------------------------------------------------------------

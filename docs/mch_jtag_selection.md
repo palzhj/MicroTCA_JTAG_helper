@@ -198,10 +198,11 @@ with openFPGALoader**.
 | 15 MHz | 15 MHz | corrupt IDCODE | no devices |
 | 20 / 25 MHz | 15 MHz (cable maximum) | corrupt IDCODE | no devices |
 
-Slots are not equally good. AMC12 is a known example: 10 MHz is too fast there, while other slots are
-fine. Both drivers therefore retry a **failed** slot once at `--fallback-freq` (default **7.5 MHz**) and
-keep that clock for the remaining slots if the retry succeeds. Set `--fallback-freq` equal to `--freq` to
-disable it.
+**Any** slot can be marginal - not only AMC12, which is just the case seen so far. Both drivers therefore
+retry a failed slot once at `--fallback-freq` (default **7.5 MHz**) and keep that clock for the remaining
+slots if the retry succeeds. The fallback covers scan failures and programming failures alike; it is not
+triggered by the chain-identity guard, which is a logic decision a slower clock cannot fix. Set
+`--fallback-freq` equal to `--freq` to disable it.
 
 **10 MHz is a signal-integrity wall on this path, not just a cable setting** - 15 MHz is achievable by the
 cable but both tools fail there, which matches the NAT-JSM rating. Requesting more is harmless (it clamps)
