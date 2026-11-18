@@ -59,7 +59,7 @@ With no `--map`, the script uses the only `slot_map*.md` beside it, and **refuse
 are present.
 
 Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by hand),
-`--no-override` (rotary switch selects the channel; verify only), `--mch ADDR`,
+`--mch ADDR`,
 `--jtag-freq HZ`, `--hw-server URL` and `--vivado PATH` (Vivado) or `--ofl PATH` (openFPGALoader). Both
 scripts accept `--help`.
 
@@ -91,16 +91,17 @@ The same file can carry two optional settings:
 | `MCH=` | MCH address used for channel selection | `--mch` > this entry > `192.168.1.41` |
 | `VIVADO=` | Vivado binary for `program_fpgas.sh` | `--vivado` > `$VIVADO` > this entry > `PATH` > newest install |
 
-## Selecting the channel reliably
+## Selecting the channel
 
-The MCH web override is accepted on every unit, but on some JSM firmware it is **not acted on**: the page
-shows the requested device while the switch stays put. If channel switching behaves erratically, drive the
-rotary switch on the JSM faceplate by hand and run with `--no-override`. The scripts then verify the MCH
-reports the expected channel and never touch the override:
+Selection is done through the **MCH website** - the drivers POST to `/goform/ctrl_jtag_jsm_override` before
+each slot, which is the same request the JSM page's Override button produces. The rotary switch on the JSM
+is not used.
 
-```bash
-./program_fpgas.sh --map slot_map_ddr4.md --no-override
-```
+If you prefer to pick the channel by hand in the browser, run with `--no-mch` and the drivers leave the MCH
+untouched.
+
+Note that on some JSM firmware the override is recorded by the MCH but not acted on by the switch; the page
+will report the requested device either way. See `docs/mch_jtag_selection.md` for the observed behaviour.
 
 ## How it works
 

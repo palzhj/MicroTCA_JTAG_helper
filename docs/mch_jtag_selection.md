@@ -146,8 +146,11 @@ moving. (`--scan` on a populated-only map looks like success for that reason: ev
 device either way.)
 
 The MCH baseboard FPGA is V1.14, which meets the >= 1.10 requirement, so the JSM's 2015 firmware is the
-weak point. Until it is updated, drive the rotary switch by hand and use `--no-override`: the drivers then
-verify the MCH reports the expected channel and never touch the override.
+weak point.
+
+Channel selection is therefore done through the **website only** - the drivers POST to
+`/goform/ctrl_jtag_jsm_override` before every slot, and never rely on the rotary switch. Select by hand in
+the JSM page if you prefer, and run the driver with `--no-mch` so it leaves the MCH alone.
 
 ### If the pod bypasses the JSM
 
