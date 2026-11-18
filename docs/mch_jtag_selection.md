@@ -166,8 +166,16 @@ FPGA. In that topology the MCH override has **no effect on what the pod sees**: 
 the USB path never passes through the switch. Channel selection only matters when the pod is plugged into
 the JSM front connector.
 
-Both drivers compare the device identity between slots and refuse to program the same FPGA twice - use
-`--allow-same-chain` or single-slot maps if a chain is genuinely shared.
+The drivers compare device identity between slots, but the two tools differ in what they can see:
+
+| Tool | Identity | Behaviour on an identical chain |
+|---|---|---|
+| Vivado | device **DNA** (unique per die) | refuses - the same FPGA twice is always wrong |
+| openFPGALoader | part + IDCODE only | **warns and continues** - a homogeneous crate has identical chains |
+
+openFPGALoader cannot read UltraScale+ DNA (`-D` is 7-series only), so in a crate full of identical boards
+its chain comparison proves nothing. It therefore warns rather than blocking; `--strict-chain` restores the
+refusal, and `--allow-same-chain` silences the warning.
 
 ### Vivado vs openFPGALoader (same bitstream, same pod, slot 1)
 

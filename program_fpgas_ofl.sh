@@ -45,7 +45,8 @@
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
 #   --no-invert-read-edge disable the above
 #   --cable NAME      JTAG cable (default: digilent_hs3)
-#   --allow-same-chain    program even if two slots report an identical chain
+#   --allow-same-chain    silence the identical-chain warning (default behaviour now warns)
+#   --strict-chain        refuse to program a slot whose chain matches the previous one
 #   --scan                only report the chain of every slot; program nothing
 #   --vid ID          cable USB vendor id (default: 0x0403)
 #   --pid ID          cable USB product id (default: 0x6010)
@@ -79,6 +80,7 @@ ofl_timeout=600
 jtag_freq=$jsm_max_jtag_hz
 fallback_freq=7500000
 allow_same_chain=0
+strict_chain=0
 scan_only=0
 cable="digilent_hs3"
 vid="0x0403"
@@ -120,6 +122,7 @@ while (($#)); do
     --fallback-freq) fallback_freq="$2"; shift 2 ;;
     --cable)        cable="$2"; shift 2 ;;
     --allow-same-chain) allow_same_chain=1; shift ;;
+    --strict-chain)     strict_chain=1; shift ;;
     --scan)             scan_only=1; shift ;;
     --vid)          vid="$2"; shift 2 ;;
     --invert-read-edge)    invert_read_edge=1; shift ;;
@@ -510,16 +513,16 @@ for slot in "${plan_slots[@]}"; do
   # openFPGALoader exposes no device DNA, so identical part names cannot be told
   # apart from a switch that is not routing. Warn only - the Vivado driver, which
   # can read DNA, is the one that refuses.
-  if [[ -n ${prev_chain_sig:-} && $chain_sig == "$prev_chain_sig" && $slot != "${prev_chain_slot:-}" ]]; then
-    if (( allow_same_chain )); then
-      warn "slot $slot: chain identical to slot ${prev_chain_slot} ($chain_sig) - continuing because --allow-same-chain"
-    else
-      err "slot $slot: chain identical to slot ${prev_chain_slot} ($chain_sig) - refusing to program"
-      printf '         openFPGALoader cannot read UltraScale+ DNA (-D is 7-series only), so this is either\n'
-      printf '         another board of the same type or a pod that is not on the switched path.\n'
-      printf '         Use --allow-same-chain if the boards really are identical.\n'
+  # openFPGALoader cannot read UltraScale+ DNA, so an identical chain may be a
+  # different board of the same type - normal in a homogeneous crate. Warn by
+  # default; --strict-chain restores the refusal.
+  if [[ -n ${prev_chain_sig:-} && $chain_sig == "$prev_chain_sig" && $slot != "${prev_chain_slot:-}" ]] \
+     && (( ! allow_same_chain )); then
+    if (( strict_chain )); then
+      err "slot $slot: chain identical to slot ${prev_chain_slot} ($chain_sig) - refusing to program (--strict-chain)"
       continue
     fi
+    warn "slot $slot: chain identical to slot ${prev_chain_slot} ($chain_sig) - continuing; OFL cannot tell same-type boards apart"
   fi
   prev_chain_sig="$chain_sig"; prev_chain_slot="$slot"
 
