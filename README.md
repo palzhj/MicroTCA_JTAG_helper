@@ -94,14 +94,17 @@ The same file can carry two optional settings:
 ## Selecting the channel
 
 Selection is done through the **MCH website** - the drivers POST to `/goform/ctrl_jtag_jsm_override` before
-each slot, which is the same request the JSM page's Override button produces. The rotary switch on the JSM
-is not used.
+each slot. Two things are required for the switch to actually move, both established by experiment:
 
-If you prefer to pick the channel by hand in the browser, run with `--no-mch` and the drivers leave the MCH
-untouched.
+1. **Nothing may hold the JTAG cable.** Vivado leaves `hw_server` running after a batch run, and while it
+   holds the cable the MCH accepts the override but the switch never moves. The drivers stop it first.
+2. **Send the override several times.** A single POST is ignored; `--override-repeats` (default 5) matches
+   the measured behaviour.
 
-Note that on some JSM firmware the override is recorded by the MCH but not acted on by the switch; the page
-will report the requested device either way. See `docs/mch_jtag_selection.md` for the observed behaviour.
+With both, the switch follows every request. Verified by reading the device DNA per channel - each board
+returns a different value.
+
+If you prefer to pick the channel by hand in the browser, run with `--no-mch`.
 
 ## How it works
 

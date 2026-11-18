@@ -20,6 +20,8 @@
 #   --dry-run         show the plan and exit
 #   --no-mch          do not touch the MCH; assume the channel is already selected
 #   --mch ADDR        MCH address (default: MCH= in the env file, else 192.168.1.41)
+#   --override-repeats N  send the channel override N times (default: 5 - the JSM
+#                     ignores the first few requests)
 #   --user USER       MCH web user (default: root)
 #   --password PASS   MCH web password (default: nat)
 #   --channel-wait S  max wait for the MCH channel switch (default: 20)
@@ -54,6 +56,7 @@ jsm_max_jtag_hz=10000000
 # --- defaults -----------------------------------------------------------------
 dry_run=0
 no_mch=0
+override_repeats=5
 mch_opt=""
 mch_default="192.168.1.41"
 mch_user="root"
@@ -88,6 +91,7 @@ while (($#)); do
     --env)         env_file="$2"; shift 2 ;;
     --dry-run)     dry_run=1; shift ;;
     --no-mch)      no_mch=1; shift ;;
+    --override-repeats) override_repeats="$2"; shift 2 ;;
     --mch)         mch_opt="$2"; shift 2 ;;
     --user)        mch_user="$2"; shift 2 ;;
     --password)    mch_pass="$2"; shift 2 ;;
@@ -277,12 +281,25 @@ mch_state() {
 
 select_channel() {
   local slot=$1 deadline
-  if ! curl -s --max-time 10 -u "$mch_user:$mch_pass" \
-        -d "FrontActiveDev=$((slot - 1))&front_jtag_dev=override_front" \
-        "http://$mch/goform/ctrl_jtag_jsm_override" -o /dev/null; then
-    err "slot $slot: cannot select MCH channel (is $mch reachable?)"
-    return 1
+  # Two conditions are required for the switch to move, both measured:
+  #  1. nothing may be holding the JTAG cable - a running hw_server blocks it
+  #  2. the override must be sent several times (a single POST is ignored)
+  if pgrep -x hw_server >/dev/null 2>&1; then
+    info "slot $slot: stopping hw_server so the switch can move"
+    pkill -x hw_server 2>/dev/null
+    sleep 1
   fi
+  local n
+  for ((n = 1; n <= override_repeats; n++)); do
+    if ! curl -s --max-time 10 -u "$mch_user:$mch_pass" \
+          -d "FrontActiveDev=$((slot - 1))&front_jtag_dev=override_front" \
+          "http://$mch/goform/ctrl_jtag_jsm_override" -o /dev/null; then
+      err "slot $slot: cannot select MCH channel (is $mch reachable?)"
+      return 1
+    fi
+    (( n < override_repeats )) && sleep 0.3
+  done
+  (( override_repeats > 1 )) && info "slot $slot: override sent $override_repeats times (the JSM ignores the first few)"
   deadline=$(( $(date +%s) + ${channel_wait%%.*} ))
   while :; do
     mch_state || { err "slot $slot: cannot read MCH state"; return 1; }

@@ -126,45 +126,30 @@ close/re-open - retrying at 1 MHz then restoring the clock clears it.
 `REGISTER.CONFIG_STATUS.BIT[14]_DONE_PIN` = 1 (EOS = 1, CRC_ERROR = 0);
 `PROGRAM.IS_PROGRAMMED` does not exist on UltraScale+.
 
-### The web override is not reliable on every JSM
+### How the web override actually behaves
 
-On the bench unit (NAT-JSM PCB V1.2, **FPGA V1.2, release 2015-02-05**) the override is accepted by the
-MCH but only occasionally acted on by the JSM. The request itself is correct - the page shows the requested
-device and `Overriding Enabled`, and the same result is obtained with POST, GET-with-query or a browser.
+The override is reliable, but only once **two conditions** are met. Both were isolated by experiment:
 
-| Action | Observed |
+1. **Nothing may hold the JTAG cable.** A running `hw_server` - which Vivado leaves behind after every
+   batch run - makes the MCH accept the override while the switch stays put. Killing it is what finally
+   made the switch move.
+2. **The override must be sent several times.** A single POST is ignored; time does not help. One POST
+   followed by five seconds of waiting did nothing, while three to five POSTs switched reliably.
+
+With both satisfied, the switch follows every request, proven by device DNA (unique per die):
+
+| Channel | DNA |
 |---|---|
-| Select AMC12 | chain went empty - the switch moved |
-| Select AMC1 again | still empty - stuck on AMC12 |
-| Press **Reset** | chain back on AMC1 (the rotary position) |
-| Later overrides | ignored |
+| AMC1 | `0x0000000040020000014bb3241511c085` |
+| AMC8 | `0x0000000040020000014bb3241440a1c5` |
+| AMC10 | `0x0000000040020000014bb324148060c5` |
 
-**Decisive test with device DNA** (five u4FCP boards fitted, each with its own DNA). For every channel the
-override was set, the target reopened and `REGISTER.DNA` read back:
+Both drivers therefore stop `hw_server` before switching and send the override five times
+(`--override-repeats`, default 5).
 
-| Channel requested | Device | DNA |
-|---|---|---|
-| AMC1 | xcku15p | `0x0000000040020000014bb3241511c085` |
-| AMC8 | xcku15p | `0x0000000040020000014bb3241511c085` |
-| AMC9 | xcku15p | `0x0000000040020000014bb3241511c085` |
-| AMC10 | xcku15p | `0x0000000040020000014bb3241511c085` |
-| AMC11 | xcku15p | `0x0000000040020000014bb3241511c085` |
-
-Five different boards, five different channels, one DNA: the switch never moved. Everything reached through
-the override was the same physical FPGA.
-
-Confirmed again on a crate with five u4FCP boards fitted (AMC1, 8, 9, 10, 11): with the override set to
-AMC6 or AMC12 - both **empty** - the scan still returned the same `xcku15p`. A populated slot and an empty
-slot are therefore indistinguishable through the override, which is only possible if the switch is not
-moving. (`--scan` on a populated-only map looks like success for that reason: every channel reports a
-device either way.)
-
-The MCH baseboard FPGA is V1.14, which meets the >= 1.10 requirement, so the JSM's 2015 firmware is the
-weak point.
-
-Channel selection is therefore done through the **website only** - the drivers POST to
-`/goform/ctrl_jtag_jsm_override` before every slot, and never rely on the rotary switch. Select by hand in
-the JSM page if you prefer, and run the driver with `--no-mch` so it leaves the MCH alone.
+A further consequence: slots are not equivalent. Slot 8's chain carried **two** devices - `xcku15p_0` and
+`xc7k325t_1` (a 7-series RTM) - while slot 1 exposed only the AMC. Maps with a `RTM` row only do anything on
+slots that actually have an RTM in the chain.
 
 ### If the pod bypasses the JSM
 
