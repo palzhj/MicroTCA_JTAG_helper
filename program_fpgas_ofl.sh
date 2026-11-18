@@ -40,6 +40,7 @@
 #   --settle S        pause after switching channel (default: 0.3; measured 45 ms)
 #   --timeout S       openFPGALoader timeout per device (default: 600)
 #   --freq HZ         JTAG clock (default: 10000000, the NAT-JSM maximum)
+#                     (--jtag-freq is accepted as an alias, matching the Vivado driver)
 #   --fallback-freq HZ  retry at this clock if the chain does not scan (default: 7500000);
 #                     set it equal to --freq to disable the fallback
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
@@ -118,7 +119,7 @@ while (($#)); do
     --channel-wait) channel_wait="$2"; shift 2 ;;
     --settle)       settle="$2"; shift 2 ;;
     --timeout)      ofl_timeout="$2"; shift 2 ;;
-    --freq)         jtag_freq="$2"; shift 2 ;;
+    --freq|--jtag-freq) jtag_freq="$2"; shift 2 ;;
     --fallback-freq) fallback_freq="$2"; shift 2 ;;
     --cable)        cable="$2"; shift 2 ;;
     --allow-same-chain) allow_same_chain=1; shift ;;
