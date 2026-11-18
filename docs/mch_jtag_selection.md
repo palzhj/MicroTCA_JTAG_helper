@@ -262,13 +262,13 @@ with Basic auth `root` / `nat`.
 
 ## 10. Bit files per slot
 
-Full paths are defined once in [`bit_files.env`](../bit_files.env), keyed by a letter; the map file decides
+Full paths are defined once in [`bit_files.env.example`](../bit_files.env.example), keyed by a letter; the map file decides
 which letter each slot gets (`-` = no load). Two maps exist, chosen with `--map`:
 
 | Map | Contents |
 |---|---|
-| [`slot_map_ddr4.md`](../slot_map_ddr4.md) | AMC `A` on slots 1, 8, 9, 10, 11; everything else `-` |
-| [`slot_map_waveform.md`](../slot_map_waveform.md) | AMC `B` on slot 1, AMC `D` on 2-12, RTM `E` on 2-12 |
+| [`slot_map_ddr4.md`](../slot_map_ddr4.md.example) | AMC `A` on slots 1, 8, 9, 10, 11; everything else `-` |
+| [`slot_map_waveform.md`](../slot_map_waveform.md.example) | AMC `B` on slot 1, AMC `D` on 2-12, RTM `E` on 2-12 |
 
 `A` and `B` are both `top.bit` (ddr4 selftest vs WR), which is why the script prints the symbol as well as
 the file name. The `AMC` device is the KUP (UltraScale+); an `RTM` entry expects a 7-series device.

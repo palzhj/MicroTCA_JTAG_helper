@@ -133,7 +133,8 @@ if [[ -z $slot_map ]]; then
   if (( ${#_maps[@]} == 1 )); then
     slot_map="${_maps[0]}"
   elif (( ${#_maps[@]} == 0 )); then
-    err "no slot map found - pass --map FILE (looked for $here/slot_map*.md)"
+    err "no slot map found - pass --map FILE"
+    printf '         looked for %s/slot_map*.md; copy one of the slot_map*.md.example files and edit it\n' "$here"
   else
     err "several slot maps found - choose one with --map:"
     for m in "${_maps[@]}"; do printf '           %s\n' "$m"; done
@@ -142,7 +143,13 @@ fi
 (( ${#errors[@]} == 0 )) || exit 1
 
 for f in "$slot_map" "$env_file"; do
-  [[ -n $f && -f $f ]] || err "missing file: ${f:-<unset>}"
+  if [[ -z $f || ! -f $f ]]; then
+    err "missing file: ${f:-<unset>}"
+    case "$(basename "${f:-}")" in
+      bit_files.env) printf '         copy bit_files.env.example to bit_files.env and edit it for your bench\n' ;;
+      *.md)          printf '         copy a slot_map*.md.example file to slot_map_<name>.md and edit it\n' ;;
+    esac
+  fi
 done
 (( ${#errors[@]} == 0 )) || exit 1
 

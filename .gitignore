@@ -1,3 +1,7 @@
+# local configuration - copy the .example files and edit those
+/bit_files.env
+/slot_map_*.md
+
 # bitstreams are supplied locally; bit_files.env points here
 firmwares/
 

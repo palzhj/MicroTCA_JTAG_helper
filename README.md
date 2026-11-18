@@ -63,7 +63,19 @@ Common options: `--map FILE`, `--dry-run`, `--no-mch` (channel already set by ha
 `--jtag-freq HZ`, `--hw-server URL` and `--vivado PATH` (Vivado) or `--ofl PATH` (openFPGALoader). Both
 scripts accept `--help`.
 
-## Configuration files
+## Configure your bench (first run)
+
+The repository ships **examples**, not live configuration: `bit_files.env.example` and
+`slot_map_*.md.example`. Copy the ones you need and edit the copies - your files stay untracked, so pulling
+updates never touches them:
+
+```bash
+cp bit_files.env.example          bit_files.env
+cp slot_map_ddr4.md.example       slot_map_ddr4.md
+cp slot_map_waveform.md.example   slot_map_waveform.md
+```
+
+`.gitignore` already excludes `bit_files.env` and `slot_map_*.md` (but not the `.example` files).
 
 `slot_map_*.md` decides which bitstream each slot gets; `-` means "no load" and the slot is skipped:
 

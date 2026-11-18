@@ -1,3 +1,5 @@
+<!-- EXAMPLE - copy to slot_map_ddr4.md and edit; your copy is gitignored -->
+
 # Slot map
 
 Full paths live in [`bit_files.env`](bit_files.env) — source it from scripts.
