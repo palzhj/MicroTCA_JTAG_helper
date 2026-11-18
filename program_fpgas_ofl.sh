@@ -324,38 +324,17 @@ select_channel() {
 # --- chain detection ----------------------------------------------------------
 declare -A dev_family=() dev_model=() dev_idcode=()
 detect_chain() {
-  # The first scan straight after an MCH channel switch can come back empty even
-  # though the chain is healthy (same stale-scan effect seen with Vivado), so
-  # retry a few times before declaring the channel dead.
-  local attempt out rc cur="" i
+  # The first scan straight after a channel switch reliably fails - with
+  # "TDO is stuck at 0", "JTAG init failed" or an empty chain - and succeeds a
+  # moment later. Every failure is therefore retried; only the last one is
+  # reported if all attempts fail.
+  local attempt out rc cur="" i last_err=""
   for attempt in 1 2 3 4; do
     dev_family=(); dev_model=(); dev_idcode=()
     timeout "$ofl_timeout" "$ofl" "${ofl_common[@]}" --detect > "$out_file" 2>&1
     rc=$?
     out=$(tr -d '\000' < "$out_file")
-    if [[ $out == *"Unknown device with IDCODE"* ]]; then
-      local idcode
-      idcode=$(printf '%s' "$out" | grep -o 'IDCODE: 0x[0-9a-fA-F]*' | head -1)
-      err "unrecognised device on the chain (${idcode:-no idcode})"
-      # A correct IDCODE that is still 'unknown' means this build simply lacks the
-      # part. 0.13.1 (the current distro package) reports exactly this for xcku15p.
-      case "${idcode:-}" in
-        *14a56093*|*4a56093*)
-          printf '         hint: that is the u4FCP xcku15p; openFPGALoader 0.13.1 does not know this part.\n'
-          printf '               use 1.1.x from the release tarball - see docs/openfpgaloader_install.md\n' ;;
-        *)
-          printf '         hint: likely a bad scan - try a lower --freq and --invert-read-edge\n' ;;
-      esac
-      return 1
-    fi
-    if [[ $out == *"JTAG init failed"* || $out == *"unable to open ftdi"* ]]; then
-      err "no JTAG target: $(printf '%s' "$out" | grep -E 'JTAG init failed|unable to open' | head -1)"
-      return 1
-    fi
-    if (( rc != 0 )); then
-      err "openFPGALoader --detect failed (exit $rc)"
-      return 1
-    fi
+
     cur=""
     while IFS= read -r line; do
       if [[ $line =~ ^index\ ([0-9]+): ]]; then
@@ -374,17 +353,36 @@ detect_chain() {
       for i in "${!dev_model[@]}"; do
         info "chain device $i: ${dev_model[$i]} (${dev_family[$i]:-?})"
       done
-      # identity of what this channel actually exposes, for cross-slot comparison
       chain_sig=""
       for i in $(printf '%s\n' "${!dev_model[@]}" | sort -n); do
         chain_sig+="${dev_model[$i]}/${dev_idcode[$i]:-?};"
       done
       return 0
     fi
-    sleep 0.7
+
+    if [[ $out == *"Unknown device with IDCODE"* ]]; then
+      last_err=$(printf '%s' "$out" | grep -o 'Unknown device with IDCODE[^)]*' | head -1)
+    elif [[ $out == *"JTAG init failed"* ]]; then
+      last_err=$(printf '%s' "$out" | grep -o 'JTAG init failed.*' | head -1)
+    elif [[ $out == *"unable to open ftdi"* ]]; then
+      last_err="cable busy - unable to open ftdi device"
+    elif (( rc != 0 )); then
+      last_err="openFPGALoader --detect exited $rc"
+    else
+      last_err="chain is empty"
+    fi
+    (( attempt < 4 )) && sleep 0.7
   done
 
-  err "chain is empty after 4 scans - no device found on the selected channel"
+  err "no devices after 4 scans: $last_err"
+  case "$last_err" in
+    *14a56093*|*4a56093*)
+      printf '         hint: that is the u4FCP xcku15p; openFPGALoader 0.13.1 does not know this part.\n'
+      printf '               use 1.1.x from the release tarball - see docs/openfpgaloader_install.md\n' ;;
+    *"stuck"*|*"init failed"*)
+      printf '         hint: the target may be unpowered - check `show_fru` (state M4 = payload on).\n'
+      printf '               else it is transient right after a switch; retry or raise --settle\n' ;;
+  esac
   printf '%s\n' "         --- last openFPGALoader --detect output: ---"
   printf '%s\n' "$out" | sed 's/^/         /'
   return 1
