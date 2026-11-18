@@ -27,7 +27,7 @@ The NAT-JSM routes the JTAG chain of **one** target at a time. Which target is c
 The override is the only *remote* way to select a channel. It is **not persistent**: it lives in RAM and
 reverts to the rotary switch position on MCH reboot or power cycle.
 
-**Current state:** `AMC1` selected, overriding enabled, JSM `Ready`.
+The rotary position is the fallback whenever no override is active.
 
 ---
 
@@ -44,8 +44,9 @@ The JSM on this unit exposes **12 targets**, all AMCs:
 | 4 | AMC5 | 10 | AMC11 |
 | 5 | AMC6 | 11 | AMC12 |
 
-**Only AMC1 is populated** (`u4FCP-v2`, FRU 5, state M4). Selecting an empty slot gives a dead scan chain —
-the pod/tool will report no devices. Check `show_fru` before selecting.
+Which slots are populated changes with the crate. On the bench at the time of writing: **AMC1, AMC8, AMC9,
+AMC10 and AMC11** (all `u4FCP-v2`, state M4). Selecting an empty slot gives a dead scan chain — the pod/tool
+reports no devices. Check `show_fru` before selecting.
 
 ---
 
@@ -116,8 +117,8 @@ This is automated by [`program_fpgas.sh`](../program_fpgas.sh): it selects each 
 RTM before AMC through [`program_chain.tcl`](../program_chain.tcl).
 
 **Observed on the bench (2026-11-17):** Digilent pod `210357A7D00EA`; the AMC1 channel carries a single
-`xcku15p` (IDCODE `00010100101001010110000010010011`). The RTM Kintex-7 is **not** on this chain, so the
-slot-1 RTM bitstream (`B`) cannot be loaded through this path. The NAT-JSM caps the JTAG clock at
+`xcku15p` (IDCODE `00010100101001010110000010010011`); slot 1 has **no** RTM on its chain. Slot 8 does —
+`xc7k325t_1` — so an `RTM` row in a map only does anything on slots that actually carry an RTM. The NAT-JSM caps the JTAG clock at
 **10 MHz**. A freshly opened target can report `No devices detected` on the first scan and succeed after a
 close/re-open - retrying at 1 MHz then restoring the clock clears it.
 
@@ -147,8 +148,8 @@ With both satisfied, the switch follows every request, proven by device DNA (uni
 | AMC8 | `0x0000000040020000014bb3241440a1c5` |
 | AMC10 | `0x0000000040020000014bb324148060c5` |
 
-Both drivers therefore stop `hw_server` before switching and send the override five times
-(`--override-repeats`, default 5).
+Both drivers therefore stop `hw_server` before switching and send the override three times
+(`--override-repeats`, default 3; two is the measured minimum).
 
 A further consequence: slots are not equivalent. Slot 8's chain carried **two** devices - `xcku15p_0` and
 `xc7k325t_1` (a 7-series RTM) - while slot 1 exposed only the AMC. Maps with a `RTM` row only do anything on
@@ -237,8 +238,8 @@ The CLI on V2.23.6 has **no** `jtag`, `jsm`, or `xvc` command. Full `help` listi
   check whether a tool session is open.
 - **Empty slot looks like a broken chain.** Before debugging cables or drivers, confirm the selected slot
   has a card (`show_fru`).
-- **Empty slots for other AMCs**: only AMC1 is populated; a channel change to any other index is a no-op
-  for programming.
+- **Empty slots look populated.** Before the `hw_server` fix, every channel reported the same device, so an
+  empty slot appeared to hold a board. Always confirm with `show_fru` and with the DNA when in doubt.
 
 ---
 
@@ -261,17 +262,16 @@ with Basic auth `root` / `nat`.
 Full paths are defined once in [`bit_files.env`](../bit_files.env), keyed by a letter; the map file decides
 which letter each slot gets (`-` = no load). Two maps exist, chosen with `--map`:
 
-| Map | Slot 1 | Slots 2-12 |
-|---|---|---|
-| [`slot_map_ddr4.md`](../slot_map_ddr4.md) | AMC `A` | AMC `A` |
-| [`slot_map_waveform.md`](../slot_map_waveform.md) | AMC `B` | RTM `E` + AMC `D` |
+| Map | Contents |
+|---|---|
+| [`slot_map_ddr4.md`](../slot_map_ddr4.md) | AMC `A` on slots 1, 8, 9, 10, 11; everything else `-` |
+| [`slot_map_waveform.md`](../slot_map_waveform.md) | AMC `B` on slot 1, AMC `D` on 2-12, RTM `E` on 2-12 |
 
 `A` and `B` are both `top.bit` (ddr4 selftest vs WR), which is why the script prints the symbol as well as
-the file name. The `AMC` device is the KUP (UltraScale+); a `RTM` entry expects a 7-series device.
+the file name. The `AMC` device is the KUP (UltraScale+); an `RTM` entry expects a 7-series device.
 
-Consequence for channel selection: **select AMC1** (`FrontActiveDev=0`) — the only slot with a defined
-bitstream. If the slot-1 chain exposes both TAPs, confirm the device index against the scan chain rather
-than assuming which is which.
+The map decides which slots are touched - there is no slot filter. An `RTM` entry only does anything on a
+slot whose chain actually contains a 7-series device (slot 8 does, slot 1 does not).
 
 ## 11. Test log
 
@@ -288,5 +288,13 @@ than assuming which is which.
 | 9 | Clock sweep 10/6/4/2/1 MHz after re-open | All scan; first scan after a stale open is empty |
 | 10 | Program slot 1 AMC (`top.bit`) on hardware | PASS - `DONE=1`, `EOS=1`, `CRC_ERROR=0` |
 | 11 | Timing, slot 1 AMC at 10 MHz | 30.3 s program, 46.4 s total |
+| 12 | DNA per channel, `hw_server` running | All channels returned one DNA - no switch |
+| 13 | DNA per channel, `hw_server` killed | AMC1, AMC8, AMC10 all different - switch works |
+| 14 | Single override POST, cable free | Never switches (3/3) |
+| 15 | Two override POSTs | Switches reliably |
+| 16 | Cable release after killing `hw_server` | 45-55 ms |
+| 17 | Two-slot run (1 and 8) through the driver | Different chains; slot 8 also exposes `xc7k325t` |
+| 18 | Clock sweep 10/6/4/2/1 MHz | All scan at 10 MHz; 15 MHz fails on both tools |
 
-Unit left in its original state after testing: **AMC1 selected, overriding enabled, `Ready`, XVC disabled.**
+State at the end of testing: override enabled, XVC disabled. The override is RAM-only, so a reboot returns
+the unit to its rotary-switch position.
