@@ -139,6 +139,20 @@ device and `Overriding Enabled`, and the same result is obtained with POST, GET-
 | Press **Reset** | chain back on AMC1 (the rotary position) |
 | Later overrides | ignored |
 
+**Decisive test with device DNA** (five u4FCP boards fitted, each with its own DNA). For every channel the
+override was set, the target reopened and `REGISTER.DNA` read back:
+
+| Channel requested | Device | DNA |
+|---|---|---|
+| AMC1 | xcku15p | `0x0000000040020000014bb3241511c085` |
+| AMC8 | xcku15p | `0x0000000040020000014bb3241511c085` |
+| AMC9 | xcku15p | `0x0000000040020000014bb3241511c085` |
+| AMC10 | xcku15p | `0x0000000040020000014bb3241511c085` |
+| AMC11 | xcku15p | `0x0000000040020000014bb3241511c085` |
+
+Five different boards, five different channels, one DNA: the switch never moved. Everything reached through
+the override was the same physical FPGA.
+
 Confirmed again on a crate with five u4FCP boards fitted (AMC1, 8, 9, 10, 11): with the override set to
 AMC6 or AMC12 - both **empty** - the scan still returned the same `xcku15p`. A populated slot and an empty
 slot are therefore indistinguishable through the override, which is only possible if the switch is not
