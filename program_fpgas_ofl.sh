@@ -40,6 +40,8 @@
 #   --settle S        pause after switching channel (default: 0.3; measured 45 ms)
 #   --timeout S       openFPGALoader timeout per device (default: 600)
 #   --freq HZ         JTAG clock (default: 10000000, the NAT-JSM maximum)
+#   --fallback-freq HZ  retry at this clock if the chain does not scan (default: 7500000);
+#                     set it equal to --freq to disable the fallback
 #   --invert-read-edge    sample JTAG reads on the falling edge (default: on)
 #   --no-invert-read-edge disable the above
 #   --cable NAME      JTAG cable (default: digilent_hs3)
@@ -75,6 +77,7 @@ channel_wait=20
 settle=0.3
 ofl_timeout=600
 jtag_freq=$jsm_max_jtag_hz
+fallback_freq=7500000
 allow_same_chain=0
 scan_only=0
 cable="digilent_hs3"
@@ -114,6 +117,7 @@ while (($#)); do
     --settle)       settle="$2"; shift 2 ;;
     --timeout)      ofl_timeout="$2"; shift 2 ;;
     --freq)         jtag_freq="$2"; shift 2 ;;
+    --fallback-freq) fallback_freq="$2"; shift 2 ;;
     --cable)        cable="$2"; shift 2 ;;
     --allow-same-chain) allow_same_chain=1; shift ;;
     --scan)             scan_only=1; shift ;;
@@ -161,9 +165,13 @@ if (( jtag_freq > 6000000 )) && (( ! invert_read_edge )); then
   warn "--freq $jtag_freq Hz without --invert-read-edge is unreliable on this bench (corrupt IDCODE above ~7 MHz)"
 fi
 
-# shared cable/frequency arguments
-ofl_common=(-c "$cable" --vid "$vid" --pid "$pid" --freq "$jtag_freq")
-(( invert_read_edge )) && ofl_common+=(--invert-read-edge)
+# shared cable/frequency arguments; rebuilt when falling back to a slower clock
+set_freq() {
+  jtag_freq="$1"
+  ofl_common=(-c "$cable" --vid "$vid" --pid "$pid" --freq "$jtag_freq")
+  (( invert_read_edge )) && ofl_common+=(--invert-read-edge)
+}
+set_freq "$jtag_freq"
 
 # --- env / map ----------------------------------------------------------------
 declare -A bitpath=()
@@ -335,7 +343,16 @@ detect_chain() {
   # "TDO is stuck at 0", "JTAG init failed" or an empty chain - and succeeds a
   # moment later. Every failure is therefore retried; only the last one is
   # reported if all attempts fail.
-  local attempt out rc cur="" i last_err=""
+  local attempt out rc cur="" i last_err="" freq primary="$jtag_freq"
+  local -a freqs=("$primary")
+  # A slot with a marginal link can scan at 7.5 MHz when 10 MHz fails; retry the
+  # whole scan at the fallback clock before giving up on the slot.
+  (( fallback_freq > 0 && fallback_freq < primary )) && freqs+=("$fallback_freq")
+  for freq in "${freqs[@]}"; do
+  if (( freq != primary )); then
+    warn "no chain at ${primary} Hz - retrying at ${freq} Hz"
+    set_freq "$freq"
+  fi
   for attempt in 1 2 3 4; do
     dev_family=(); dev_model=(); dev_idcode=()
     timeout "$ofl_timeout" "$ofl" "${ofl_common[@]}" --detect > "$out_file" 2>&1
@@ -380,15 +397,17 @@ detect_chain() {
     fi
     (( attempt < 4 )) && sleep 0.7
   done
+  done
 
-  err "no devices after 4 scans: $last_err"
+  err "no devices after 4 scans at ${primary} Hz${freqs[1]:+ and 4 at ${freqs[1]} Hz}: $last_err"
   case "$last_err" in
     *14a56093*|*4a56093*)
       printf '         hint: that is the u4FCP xcku15p; openFPGALoader 0.13.1 does not know this part.\n'
       printf '               use 1.1.x from the release tarball - see docs/openfpgaloader_install.md\n' ;;
     *"stuck"*|*"init failed"*)
       printf '         hint: the target may be unpowered - check `show_fru` (state M4 = payload on).\n'
-      printf '               else it is transient right after a switch; retry or raise --settle\n' ;;
+      printf '               else it is transient right after a switch; retry or raise --settle\n'
+      printf '               a marginal slot may need a slower clock: try --freq %s\n' "${fallback_freq}" ;;
   esac
   printf '%s\n' "         --- last openFPGALoader --detect output: ---"
   printf '%s\n' "$out" | sed 's/^/         /'

@@ -28,6 +28,7 @@
 #   --settle S        pause after switching channel (default: 0.3; measured 45 ms)
 #   --timeout S       Vivado timeout per slot (default: 900)
 #   --jtag-freq HZ    JTAG clock, capped at the NAT-JSM maximum (default: 10000000)
+#   --fallback-freq HZ  retry a failed slot at this clock (default: 7500000)
 #   --hw-server URL   hw_server URL (default: localhost:3121)
 #   --rtm-dev NAME    force the RTM hw_device name (default: auto by part)
 #   --amc-dev NAME    force the AMC hw_device name (default: auto by part)
@@ -65,6 +66,7 @@ channel_wait=20
 settle=0.3
 vivado_timeout=900
 jtag_freq=$jsm_max_jtag_hz
+fallback_freq=7500000
 hw_server="localhost:3121"
 rtm_dev=""
 amc_dev=""
@@ -99,6 +101,7 @@ while (($#)); do
     --settle)      settle="$2"; shift 2 ;;
     --timeout)     vivado_timeout="$2"; shift 2 ;;
     --jtag-freq)   jtag_freq="$2"; shift 2 ;;
+    --fallback-freq) fallback_freq="$2"; shift 2 ;;
     --hw-server)   hw_server="$2"; shift 2 ;;
     --rtm-dev)     rtm_dev="$2"; shift 2 ;;
     --amc-dev)     amc_dev="$2"; shift 2 ;;
@@ -445,17 +448,19 @@ evaluate_slot() {
 out_file="$(mktemp)"
 trap 'rm -f "$out_file"' EXIT
 
-for slot in "${plan_slots[@]}"; do
+run_slot() {
+  local slot=$1 rtm_bit amc_bit rc slot_start slot_ms
+  local -a roles=()
+
   printf '\n=== slot %s %s\n' "$slot" "=============================================="
   slot_start=$(date +%s%N)
   rtm_bit="${role_path["$slot:RTM"]:-none}"
   amc_bit="${role_path["$slot:AMC"]:-none}"
-  roles=()
   [[ $rtm_bit != none ]] && roles+=(RTM)
   [[ $amc_bit != none ]] && roles+=(AMC)
 
   if (( ! no_mch )); then
-    select_channel "$slot" || continue
+    select_channel "$slot" || return 1
     sleep "$settle"
   fi
 
@@ -476,6 +481,20 @@ for slot in "${plan_slots[@]}"; do
 
   slot_ms=$(( ($(date +%s%N) - slot_start) / 1000000 ))
   info "slot $slot: total $((slot_ms / 1000)).$(printf '%03d' $((slot_ms % 1000)))s (MCH select + Vivado + program)"
+  return 0
+}
+
+for slot in "${plan_slots[@]}"; do
+  err_mark=${#errors[@]}
+  run_slot "$slot"
+  # A slot with a marginal link can work at 7.5 MHz when it fails at 10 MHz, so
+  # retry the slot once at the fallback clock and discard the failed attempt.
+  if (( ${#errors[@]} > err_mark )) && (( fallback_freq > 0 && fallback_freq < jtag_freq )); then
+    warn "slot $slot: failed at ${jtag_freq} Hz - retrying at ${fallback_freq} Hz"
+    errors=("${errors[@]:0:$err_mark}")
+    jtag_freq=$fallback_freq
+    run_slot "$slot"
+  fi
 done
 
 # --- summary ------------------------------------------------------------------

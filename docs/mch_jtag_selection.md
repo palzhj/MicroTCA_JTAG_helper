@@ -198,6 +198,11 @@ with openFPGALoader**.
 | 15 MHz | 15 MHz | corrupt IDCODE | no devices |
 | 20 / 25 MHz | 15 MHz (cable maximum) | corrupt IDCODE | no devices |
 
+Slots are not equally good. AMC12 is a known example: 10 MHz is too fast there, while other slots are
+fine. Both drivers therefore retry a **failed** slot once at `--fallback-freq` (default **7.5 MHz**) and
+keep that clock for the remaining slots if the retry succeeds. Set `--fallback-freq` equal to `--freq` to
+disable it.
+
 **10 MHz is a signal-integrity wall on this path, not just a cable setting** - 15 MHz is achievable by the
 cable but both tools fail there, which matches the NAT-JSM rating. Requesting more is harmless (it clamps)
 but pointless. Without `--invert-read-edge` the ceiling drops further: 10 MHz and 8 MHz corrupt, 7 MHz is
@@ -262,13 +267,13 @@ with Basic auth `root` / `nat`.
 
 ## 10. Bit files per slot
 
-Full paths are defined once in [`bit_files.env.example`](../bit_files.env.example), keyed by a letter; the map file decides
+Full paths are defined once in [`bit_files.env`](../bit_files.env), keyed by a letter; the map file decides
 which letter each slot gets (`-` = no load). Two maps exist, chosen with `--map`:
 
 | Map | Contents |
 |---|---|
-| [`slot_map_ddr4.md`](../slot_map_ddr4.md.example) | AMC `A` on slots 1, 8, 9, 10, 11; everything else `-` |
-| [`slot_map_waveform.md`](../slot_map_waveform.md.example) | AMC `B` on slot 1, AMC `D` on 2-12, RTM `E` on 2-12 |
+| [`slot_map_ddr4.md`](../slot_map_ddr4.md) | AMC `A` on slots 1, 8, 9, 10, 11; everything else `-` |
+| [`slot_map_waveform.md`](../slot_map_waveform.md) | AMC `B` on slot 1, AMC `D` on 2-12, RTM `E` on 2-12 |
 
 `A` and `B` are both `top.bit` (ddr4 selftest vs WR), which is why the script prints the symbol as well as
 the file name. The `AMC` device is the KUP (UltraScale+); an `RTM` entry expects a 7-series device.
